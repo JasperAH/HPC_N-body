@@ -1,0 +1,60 @@
+# gravitational constant
+G = 6.67408/100000000000 # 6.67408e-11
+# timestep size (arbitrary for now)
+dt = 0.01
+sim_years = 1
+n_timesteps = (60*60*24*365.25*sim_years)/dt
+
+# calculate force j excerts on i for each dimension
+def F_gravitational(i, j){
+	global G
+	r = i.x-j.x
+	d = sqrt(x.x**2 + x.y**2 + x.z**2)
+	u = r/d
+	f = (-1*G*i.m*j.m)/(d**2)
+	return u*f
+}
+
+N = {<m,x,v> | x and v of type vector3} # e.g. x: x.x, x.y, x.z & v.x, v.y, v.z
+
+
+forelem(t; t in [1,n_timesteps]){
+	# addressed via e.g. Kx[n,k] where n in N and k in [1,4]. Kx and Kv contain vectors in R3.
+	Kx[] = 0
+	Kv[] = 0
+
+	forelem(kn; kn in [1,4]){
+		forelem (i; i in N){
+			forelem (j; j in N){
+				if (i != j){
+					temp_i = i
+					temp_j = j
+					if(kn == 2 or kn == 3){
+						temp_i.x = temp_i.x + Kx[i,kn-1]/2
+						temp_j.x = temp_j.x + Kx[j,kn-1]/2
+					}
+					if(kn == 4){
+						temp_i.x = temp_i.x + Kx[i,kn-1]
+						temp_j.x = temp_j.x + Kx[j,kn-1]
+					}
+					a = F_gravitational(temp_i,temp_j)/i.m 	# vector3 a contains x, y and z components
+					Kv[i,kn] = Kv[i,kn] + a*dt
+				}
+			}
+			if(kn == 1){
+				Kx[i,kn] = i.v * dt
+			}
+			if(kn == 2 or kn == 3){
+				Kx[i,kn] = (i.v + Kv[i,kn-1]/2) * dt
+			}
+			if(kn == 4){
+				Kx[i,kn] = (i.v + Kv[i,kn-1]) * dt
+			}
+		}
+	}
+
+	forelem (i; i in N){
+		i.x = i.x + (Kx[i,1] + 2*Kx[i,2] + 2*Kx[i,3] + Kx[i,4])/6
+		i.v = i.v + (Kv[i,1] + 2*Kv[i,2] + 2*Kv[i,3] + Kv[i,4])/6 
+	}
+}

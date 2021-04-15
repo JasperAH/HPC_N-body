@@ -1,0 +1,77 @@
+# gravitational constant
+G = 6.67408/100000000000 # 6.67408e-11
+# timestep size (arbitrary for now)
+dt = 0.01
+sim_years = 1
+n_timesteps = (60*60*24*365.25*sim_years)/dt
+cur_timestep = 1
+
+# calculate force j exerts on i for each dimension
+def F_gravitational(i, j){
+	global G
+	r = i.x-j.x
+	d = sqrt(x.x**2 + x.y**2 + x.z**2)
+	u = r/d
+	f = (-1*G*i.m*j.m)/(d**2)
+	return u*f
+}
+
+N = {<m,x,v> | x and v vectors in R3} # e.g. x: x.x, x.y, x.z & v.x, v.y, v.z
+
+# addressed via e.g. Kx[n,k] where n in N and k in [1,4]. Kx and Kv contain vector3s.
+Kx[] = 0
+Kv[] = 0
+# K_mask is a mask for n,k,t combinations, counting the number of modifications comparing to len(N).
+K_mask[] = 0
+T_mask = 0
+
+forelem(<i,j,kn,t>; i,j in N, kn in [1,5], t in [1,n_timesteps]){
+	if (i != j and kn == 1 and t == cur_timestep ){
+		a = F_gravitational(i,j)/i.m 	# vector3 a contains x, y and z components
+		Kv[i,kn] = Kv[i,kn] + a*dt
+		Kx[i,kn] = i.v * dt
+		K_mask[i,kn,t] = K_mask[i,kn,t] + 1
+	}
+	if (i != j and kn == 2 and t == cur_timestep and K_mask[i,kn-1] == len(N) and K_mask[j,kn-1] == len(N) ){
+		temp_i = i
+		temp_j = j
+		temp_i.x = temp_i.x + Kx[i,kn-1]/2
+		temp_j.x = temp_j.x + Kx[j,kn-1]/2
+		a = F_gravitational(temp_i,temp_j)/i.m
+		Kv[i,kn] = Kv[i,kn] + a*dt
+		Kx[i,kn] = (i.v + Kv[i,kn-1]/2) * dt
+		K_mask[i,kn,t] = K_mask[i,kn,t] + 1
+	}
+	if (i != j and kn == 3 and t == cur_timestep and K_mask[i,kn-1] == len(N) and K_mask[j,kn-1] == len(N) ){
+		temp_i = i
+		temp_j = j
+		temp_i.x = temp_i.x + Kx[i,kn-1]/2
+		temp_j.x = temp_j.x + Kx[j,kn-1]/2
+		a = F_gravitational(temp_i,temp_j)/i.m
+		Kv[i,kn] = Kv[i,kn] + a*dt
+		Kx[i,kn] = (i.v + Kv[i,kn-1]/2) * dt
+		K_mask[i,kn,t] = K_mask[i,kn,t] + 1
+	}
+	if (i != j and kn == 4 and t == cur_timestep and K_mask[i,kn-1] == len(N) and K_mask[j,kn-1] == len(N) ){
+		temp_i = i
+		temp_j = j
+		temp_i.x = temp_i.x + Kx[i,kn-1]
+		temp_j.x = temp_j.x + Kx[j,kn-1]
+		a = F_gravitational(temp_i,temp_j)/i.m
+		Kv[i,kn] = Kv[i,kn] + a*dt
+		Kx[i,kn] = (i.v + Kv[i,kn-1]) * dt
+		K_mask[i,kn,t] = K_mask[i,kn,t] + 1
+	}
+	if ( kn == 5 and K_mask[i,kn,t] == 0 and K_mask[i,kn-1] == len(N) and K_mask[j,kn-1] == len(N) and T_mask < len(N) ){
+		i.x = i.x + (Kx[i,1] + 2*Kx[i,2] + 2*Kx[i,3] + Kx[i,4])/6
+		i.v = i.v + (Kv[i,1] + 2*Kv[i,2] + 2*Kv[i,3] + Kv[i,4])/6 
+		Kx[i,:] = 0
+		Kv[i,:] = 0
+		K_mask[i,kn,t] = 1
+		T_mask = T_mask + 1
+	}
+	if ( T_mask == len(N)){
+		cur_timestep = cur_timestep + 1
+		T_mask = 0
+	}
+}

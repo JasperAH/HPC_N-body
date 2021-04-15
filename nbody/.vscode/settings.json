@@ -1,0 +1,7 @@
+{
+    "fortran.includePaths": [
+        "/usr/local/include",
+        "/usr/local",
+        "/home/user/Documents/HPCII/nbody/library/src"
+    ]
+}
