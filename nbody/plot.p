@@ -2,12 +2,12 @@ reset
 
 #print - use x11 on mac, wxt on linux, set print=1 to create a gif
 #if(print==-1) {set term x11 enhanced size 500,500}
-if(!exists('print')){print=0}
+if(!exists('print')){print=1}
 if(print==0){set term qt enhanced size 700,700}
 if(print==1){set term gif animate size 500,500 delay 1 optimize; set output 'movie.gif'}
 
 #L - size of plot in AU
-if(!exists('L')){L=1}
+if(!exists('L')){L=2}
 print 'Size of plot [au]: L:', L
 
 #f - rotation frequency of plot
@@ -15,7 +15,7 @@ if(!exists('f')){f=0}
 print 'Rotation frequency [yr^-1]: f:', f
 
 #dim - number of dimensions, either 2 or 3
-if(!exists('dim')){dim=2}
+if(!exists('dim')){dim=3}
 print 'Number of dimensions: dim: ', dim
 
 #traj - set to 1 to make particle trajectories, 0 otherwise
