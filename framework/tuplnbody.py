@@ -66,17 +66,22 @@ def init():
     Kx = {}
     Kv = {}
     K_mask = {}
-    T_mask = 0
+    T_mask = {}
 
     M = {}
     X = {}
     V = {}
+
+    T_mask = [0] * (n_timesteps+1)
+    T_mask[0] = len(N)
 
     for i in range(len(N)):
         M[i] = N[i][0]
         X[i,cur_timestep] = N[i][1]
         V[i,cur_timestep] = N[i][2]
         for j in range(len(N)):
+            if i == j:
+                continue
             for kn in range(1,6): # [1,5]
                 for t in range(1,n_timesteps+1): # [1,n_timesteps]
                     T.append(Tuple(i,j,kn,t))
@@ -195,11 +200,10 @@ sc_body.append(SC4body)
 def cond5(t):
     return (t.kn == 5 and t.t == cur_timestep and K_mask[t.i,t.kn,t.t] == 0
             and K_mask[t.i,(t.kn-1),t.t] == n_bodies-1 
-            and K_mask[t.j,(t.kn-1),t.t] == n_bodies-1
-            and T_mask < n_bodies)
+            and K_mask[t.j,(t.kn-1),t.t] == n_bodies-1)
 
 def SC5body(t):
-    global T_mask
+    global T_mask, cur_timestep
     # FIXME: x and v before = need to be from next timestep somehow
     # maybe fixable using another shared space to store values somehow?
     X[t.i,t.t+1] = X[t.i,t.t] + (Kx[t.i,1] + 2*Kx[t.i,2] + 2*Kx[t.i,3] + Kx[t.i,4])/6
@@ -208,8 +212,9 @@ def SC5body(t):
         Kx[t.i,index] = 0
         Kv[t.i,index] = 0
     K_mask[t.i,t.kn,t.t] = 1
-    T_mask = T_mask + 1
-
+    T_mask[cur_timestep] = T_mask[cur_timestep] + 1
+    if T_mask[cur_timestep] == len(N):
+        cur_timestep = cur_timestep + 1
     print(cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1])
     
 sc_cond.append(cond5)
@@ -219,16 +224,18 @@ sc_body.append(SC5body)
 # Serial code 6
 #
 
-def cond6(t):
-    return (T_mask == n_bodies)
+#def cond6(t):
+#    return (T_mask == n_bodies)
 
-def SC6body(t):
-    global T_mask, cur_timestep
-    cur_timestep = cur_timestep + 1
-    T_mask = 0
+#def SC6body(t):
+#    global T_mask, cur_timestep
+#    cur_timestep = cur_timestep + 1
+#    T_mask = 0
+#    print("SC6body")
+#    print(t)
 
-sc_cond.append(cond6)
-sc_body.append(SC6body)
+#sc_cond.append(cond6)
+#sc_body.append(SC6body)
 
 ###
 # Loop mechanics
@@ -297,6 +304,10 @@ def loop():
         for t in tmp:
             body(t)
         print("post",len(T))
+        if len(T) == size:
+            print("Stuck, bad exit")
+            print(T)
+            return
         done = len(T) == 0 #len(T) == size
 
 def loop_whilelem():
@@ -325,6 +336,7 @@ def initRandom():
     for i, c in enumerate(bytearray(os.urandom(4))):
         seed += c << i * 8
 
+    seed = 0x3f93ba96 # TODO temp
     random.seed(seed)
 
     print("Initialized random number generator with seed: 0x{:x}\n".format(seed))
@@ -343,5 +355,6 @@ if __name__ == '__main__':
     initRandom()
 
     init()
+    print(T)
     loop()
     print(T)
