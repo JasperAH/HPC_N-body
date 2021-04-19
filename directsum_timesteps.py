@@ -171,8 +171,8 @@ def cond5(t):
 
 def SC5body(t):
     '''The actual serial code to execute if cond5 is True'''
-    t.i.x = t.i.x + (Kx[t.i,1] + 2*Kx[t.i,2] + 2*Kx[t.i,3] + Kx[t.i,4])/6
-    t.i.v = t.i.v + (Kv[t.i,1] + 2*Kv[t.i,2] + 2*Kv[t.i,3] + Kv[t.i,4])/6 
+    t.i.x = t.i.x + (Kx[t.i,1] + 2*Kx[t.i,2] + 2*Kx[t.i,3] + Kx[t.i,4])/6 #TODO this should be in the next timestep (t.i.x, t+1) or something, tupl reservoir?
+    t.i.v = t.i.v + (Kv[t.i,1] + 2*Kv[t.i,2] + 2*Kv[t.i,3] + Kv[t.i,4])/6 #TODO this should be in the next timestep (t.i.v, t+1) or something, tupl reservoir?
     Kx[t.i,:] = 0
     Kv[t.i,:] = 0
     K_mask[t.i,t.kn,cur_timestep] = 1
