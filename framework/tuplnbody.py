@@ -47,7 +47,6 @@ def f_gravitational(i, j): # bodies contain m:[0] x:[1] v:[2]
     return u*f
 
 
-
 def init():
     '''Initialize some tuple reservoirs (e.g. T) and necessary shared
     spaces (e.g. S). Shared spaces are usually modeled with a dictionary
@@ -56,6 +55,7 @@ def init():
     global N, n_bodies
     global file 
     global M, X, V
+    global n_timesteps
     n_timesteps = sim_years #should be more like: (60*60*24*365.25*sim_years)/dt
 
     inputdata = np.loadtxt(file) #  n rows, and columns that are 'mass' 'x' 'y' 'z' 'vx' 'vy' 'vz'
@@ -88,6 +88,31 @@ def init():
                     K_mask[i,kn,t] = 0
                 Kv[i,kn] = 0
                 Kx[i,kn] = 0
+
+
+#dataplotting function 
+def filedrop(t, i, x, v): #cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1]
+    #print("TADA Filedrop:")
+    file_name = "particle_" + str(i) + ".dat"
+    #print(file_name)
+    location = "output_data/"
+    white = "        "
+    data = str(t) + white + str(X[i, t][0]) + white + str(X[i, t][1]) + white + str(X[i, t][2]) + white + str(V[i, t][0]) + white + str(V[i, t][1]) + white + str(V[i, t][2])
+    #print(data)
+    if t > 1:
+        outF = open(location+file_name, "a")
+        # write line to output file
+        outF.write(data)
+        outF.write("\n")
+        outF.close()
+    else:
+        outF = open(location+file_name, "w")
+        # write line to output file
+        outF.write(data)
+        outF.write("\n")
+        outF.close()
+
+
 
 ######
 #   SERIAL CODE CONDITIONS AND BODIES
@@ -203,7 +228,7 @@ def cond5(t):
             and K_mask[t.j,(t.kn-1),t.t] == n_bodies-1)
 
 def SC5body(t):
-    global T_mask, cur_timestep
+    global T_mask, cur_timestep, n_timesteps
     # FIXME: x and v before = need to be from next timestep somehow
     # maybe fixable using another shared space to store values somehow?
     X[t.i,t.t+1] = X[t.i,t.t] + (Kx[t.i,1] + 2*Kx[t.i,2] + 2*Kx[t.i,3] + Kx[t.i,4])/6
@@ -213,9 +238,11 @@ def SC5body(t):
         Kv[t.i,index] = 0
     K_mask[t.i,t.kn,t.t] = 1
     T_mask[cur_timestep] = T_mask[cur_timestep] + 1
+    print(cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1])
+    if cur_timestep % (n_timesteps/1000) == 0.0: #division should produce float, no cast required (from __future__)
+        filedrop(cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1])
     if T_mask[cur_timestep] == len(N):
         cur_timestep = cur_timestep + 1
-    print(cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1])
     
 sc_cond.append(cond5)
 sc_body.append(SC5body)
