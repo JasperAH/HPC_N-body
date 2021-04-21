@@ -52,7 +52,7 @@ set zrange [-L:L]
 unset key
 
 #Filenames to plot
-filename(n) = sprintf("./data/particle_%d.dat", n)
+filename(n) = sprintf("./output_data/particle_%d.dat", n)
 
 #Convert rotation frequency to angular frequency
 w=2.*pi*f
