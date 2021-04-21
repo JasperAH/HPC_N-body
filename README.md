@@ -12,10 +12,10 @@
     - There are dedicated M, X and V shared spaces, X and V also require a time element to access, allowing for setting the correct X and V values in the 5th condition. N.B. this solution may be related to the issue described below since its cause is not certain for now.
 - [x] implement tUPL in python framework: tuplcomplex.py seems suited for this as it has a similar structure
     - This is largely done, there is however an issue where not all orders of tupl execution finish. Some lead to deadlocks, not yet sure why for now. Might be to do with an attempt at forelem, since currently only whilelem is available.
-    - [ ] investigate & fix deadlock cause
+    - [x] investigate & fix deadlock cause
 - [x] add file reading such that both can use the same input data
-- [ ] add file writing to same format as Fortran90 format such that `gnuplot` script can be used
-- [ ] compare results of Fortran90 and tUPL implementation after running on the same dataset
+- [x] add file writing to same format as Fortran90 format such that `gnuplot` script can be used
+- [x] compare results of Fortran90 and tUPL implementation after running on the same dataset (THESE ARE VERY COMPARABLE /caps)
 - [ ] add k-means functionality to script to cluster bodies
 - [ ] add separate calculations for clusters and bodies
 - [ ] integrate body and cluster calculations & determine expected error (roughly)
