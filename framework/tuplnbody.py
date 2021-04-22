@@ -80,7 +80,7 @@ def init():
     T_mask[0] = len(N)
 
     for i in range(len(N)):
-        M[i] = N[i][0]*(15000000000)
+        M[i] = N[i][0]*(15000000000) # seems close to AU/10: 149597870700/10. Maybe related to g=9.78m/s^2
         X[i,cur_timestep] = N[i][1]
         V[i,cur_timestep] = N[i][2]
         singleKn5 = False
