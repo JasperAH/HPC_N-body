@@ -58,9 +58,8 @@ def init():
     global n_timesteps, dt, n_outputs
     dt = sim_years/(n_outputs) # with 10 years and 1000 outputs this remains 0.01
     print("dt",dt)
-    n_timesteps = int(2*math.pi*sim_years/dt) #should be more like: (60*60*24*365.25*sim_years)/dt
+    n_timesteps = int(2*math.pi*sim_years/dt) #should be more like: (60*60*24*365.25*sim_years)/dt?
     print("n_timesteps",n_timesteps)
-    #n_timesteps = (60*60*24*365.25*sim_years)/dt
 
     inputdata = np.loadtxt(file) #  n rows, and columns that are 'mass' 'x' 'y' 'z' 'vx' 'vy' 'vz'
     N = [[row[0],np.array([row[1],row[2],row[3]]),np.array([row[4],row[5],row[6]])] for row in inputdata]
@@ -109,7 +108,6 @@ def filedrop(t, i, x, v): #cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1]
     white = "        "
     #data = str(t) + white + str(X[i, t][0]) + white + str(X[i, t][1]) + white + str(X[i, t][2]) + white + str(V[i, t][0]) + white + str(V[i, t][1]) + white + str(V[i, t][2])
     data = "{:10.10f}".format(t) + white + "{:10.10f}".format(x[0]) + white + "{:10.10f}".format(x[1]) + white + "{:10.10f}".format(x[2]) + white + "{:10.10f}".format(v[0]) + white + "{:10.10f}".format(v[1]) + white + "{:10.10f}".format(v[2])
-    #print(data)
     if t >= 1:
         outF = open(location+file_name, "a")
         # write line to output file
@@ -155,7 +153,6 @@ def SC1body(t):
     Kx[t.i,t.kn] = V[t.i,t.t] * dt
     K_mask[t.i,t.kn,t.t] = K_mask[t.i,t.kn,t.t] + 1
 
-    #print(cur_timestep, t.i, 1)
     add_tuple(t.i,t.j,t.kn,t.t+1)
 
 sc_cond.append(cond1)
@@ -183,7 +180,6 @@ def SC2body(t):
     Kx[t.i,t.kn] = (V[t.i,t.t] + Kv[t.i,(t.kn-1)]/2) * dt
     K_mask[t.i,t.kn,t.t] = K_mask[t.i,t.kn,t.t] + 1
 
-    #print(cur_timestep, t.i, 2)
     add_tuple(t.i,t.j,t.kn,t.t+1)
 
 sc_cond.append(cond2)
@@ -209,7 +205,6 @@ def SC3body(t):
     Kx[t.i,t.kn] = (V[t.i,t.t] + Kv[t.i,(t.kn-1)]/2) * dt
     K_mask[t.i,t.kn,t.t] = K_mask[t.i,t.kn,t.t] + 1
 
-    #print(cur_timestep, t.i, 3)
     add_tuple(t.i,t.j,t.kn,t.t+1)
 
 sc_cond.append(cond3)
@@ -235,7 +230,6 @@ def SC4body(t):
     Kx[t.i,t.kn] = (V[t.i,t.t] + Kv[t.i,(t.kn-1)]) * dt
     K_mask[t.i,t.kn,t.t] = K_mask[t.i,t.kn,t.t] + 1
 
-   #print(cur_timestep, t.i, 4)
     add_tuple(t.i,t.j,t.kn,t.t+1)
 
 sc_cond.append(cond4)
@@ -253,8 +247,6 @@ def cond5(t):
 def SC5body(t):
     global T_mask, cur_timestep, n_timesteps
     global T, K_mask, N
-    # FIXME: x and v before = need to be from next timestep somehow
-    # maybe fixable using another shared space to store values somehow?
     X[t.i,t.t+1] = X[t.i,t.t] + (Kx[t.i,1] + 2*Kx[t.i,2] + 2*Kx[t.i,3] + Kx[t.i,4])/6
     V[t.i,t.t+1] = V[t.i,t.t] + (Kv[t.i,1] + 2*Kv[t.i,2] + 2*Kv[t.i,3] + Kv[t.i,4])/6
     for index in range(1,5):
@@ -263,9 +255,6 @@ def SC5body(t):
     K_mask[t.i,t.kn,t.t] = 1
     T_mask[cur_timestep] = T_mask[cur_timestep] + 1
     if(t.i == 0 and cur_timestep % (n_timesteps/n_outputs) < 1.0): print(cur_timestep)
-    #print(cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1])
-    #print(n_timesteps,cur_timestep % (n_timesteps/n_outputs),cur_timestep/6.283,n_outputs)
-    #print(n_timesteps,cur_timestep,(cur_timestep*n_outputs)/(n_timesteps),(cur_timestep/n_outputs) >= dt*count_outputs)
     if cur_timestep % (n_timesteps/n_outputs) < 1.0: #division should produce float, no cast required (from __future__)
         filedrop(cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1])
     if T_mask[cur_timestep] == len(N):
@@ -276,22 +265,6 @@ def SC5body(t):
 sc_cond.append(cond5)
 sc_body.append(SC5body)
 
-###
-# Serial code 6
-#
-
-#def cond6(t):
-#    return (T_mask == n_bodies)
-
-#def SC6body(t):
-#    global T_mask, cur_timestep
-#    cur_timestep = cur_timestep + 1
-#    T_mask = 0
-#    print("SC6body")
-#    print(t)
-
-#sc_cond.append(cond6)
-#sc_body.append(SC6body)
 
 ###
 # Loop mechanics
@@ -309,7 +282,6 @@ def body(t):
     if(len(bodies_with_true_cond) > 0): # len is always 1 or 0 I believe
         choice = random.randint(0,len(bodies_with_true_cond)-1)
         bodies_with_true_cond[choice](t)
-        #print("removing")
         T.remove(t) # attempt to convert whilelem to forelem
     return
 
@@ -333,36 +305,14 @@ def loop():
         tmp = list(T)
         random.shuffle(tmp)
         size = len(T)
-        #print("pre ",size)
         for t in tmp:
             body(t)
-        #print("post",len(T))
-        if len(T) == size and False:
-            print("Stuck, bad exit")
-            print(T)
-            return
+        # if len(T) == size and False: # this no longer works with dynamically adding tupls
+        #     print("Stuck, bad exit")
+        #     print(T)
+        #     return
         done = len(T) == 0 #len(T) == size
 
-def loop_whilelem():
-    '''Implementation of the actual whilelem loop.'''
-
-    # The whilelem loop is run until there is no tuple left for which at
-    # least one of the conditions is True.
-    changed = True
-    while changed:
-        changed = False
-
-        # Execute loop body for each tuple in random order.
-        # For testing it is sometimes useful to temporarily disable the
-        # call to "shuffle".
-        tmp = list(T)
-        random.shuffle(tmp)
-        for t in tmp:
-            body(t)
-
-        # Check if there's a tuple left for which at least one of the
-        # conditions is True.
-        changed |= checkConditions()
 
 def initRandom():
     seed = 0
@@ -383,11 +333,8 @@ if __name__ == '__main__':
     
     file = sys.argv[1] # n rows, and columns that are 'mass' 'x' 'y' 'z' 'vx' 'vy' 'vz'
     sim_years = int(sys.argv[2]) 
-    #output = sys.argv[3]
 
     initRandom()
 
     init()
-    #print(T)
     loop()
-    #print(T)
