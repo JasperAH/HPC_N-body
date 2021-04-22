@@ -83,10 +83,15 @@ def init():
         M[i] = N[i][0]*(15000000000)
         X[i,cur_timestep] = N[i][1]
         V[i,cur_timestep] = N[i][2]
+        singleKn5 = False
         for j in range(len(N)):
             if i == j:
                 continue
             for kn in range(1,6): # [1,5]
+                if kn == 5 and singleKn5:
+                    continue
+                if kn == 5:
+                    singleKn5 = True
                 for t in range(1,2):# range(1,n_timesteps+1): # [1,n_timesteps]
                     T.append(Tuple(i,j,kn,t))
                     K_mask[i,kn,t] = 0
@@ -247,7 +252,7 @@ def cond5(t):
 
 def SC5body(t):
     global T_mask, cur_timestep, n_timesteps
-    global T, K_mask
+    global T, K_mask, N
     # FIXME: x and v before = need to be from next timestep somehow
     # maybe fixable using another shared space to store values somehow?
     X[t.i,t.t+1] = X[t.i,t.t] + (Kx[t.i,1] + 2*Kx[t.i,2] + 2*Kx[t.i,3] + Kx[t.i,4])/6
@@ -257,7 +262,7 @@ def SC5body(t):
         Kv[t.i,index] = 0
     K_mask[t.i,t.kn,t.t] = 1
     T_mask[cur_timestep] = T_mask[cur_timestep] + 1
-    if(t.i ==0 and cur_timestep % (n_timesteps/100) == 0.0): print(cur_timestep)
+    if(t.i == 0 and cur_timestep % (n_timesteps/n_outputs) < 1.0): print(cur_timestep)
     #print(cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1])
     #print(n_timesteps,cur_timestep % (n_timesteps/n_outputs),cur_timestep/6.283,n_outputs)
     #print(n_timesteps,cur_timestep,(cur_timestep*n_outputs)/(n_timesteps),(cur_timestep/n_outputs) >= dt*count_outputs)
