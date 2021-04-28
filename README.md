@@ -19,5 +19,6 @@
 - [ ] rewrite and generalize if statements by adding only termination criteria for tupls instead of executing criteria
 - [ ] add k-means functionality to script to cluster bodies
 - [ ] add separate calculations for clusters and bodies
-- [ ] integrate body and cluster calculations & determine expected error (roughly)
+- [ ] integrate body and cluster calculations
+- [ ] determine expected error (roughly, if necessary)
 - [ ] tbd...
