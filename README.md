@@ -16,7 +16,7 @@
 - [x] add file reading such that both can use the same input data
 - [x] add file writing to same format as Fortran90 format such that `gnuplot` script can be used
 - [x] compare results of Fortran90 and tUPL implementation after running on the same dataset (THESE ARE VERY COMPARABLE /caps)
-- [ ] rewrite and generalize if statements by adding only termination criteria for tupls instead of executing criteria
+- [ ] rewrite and generalize if statements (both in tUPL spec and python) by adding only termination criteria for tupls instead of executing criteria
 - [ ] add k-means functionality to script to cluster bodies
 - [ ] add separate calculations for clusters and bodies
 - [ ] integrate body and cluster calculations
