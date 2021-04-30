@@ -37,6 +37,53 @@ cur_timestep = 1
 Tuple = collections.namedtuple('Tuple', 'i j kn t')
 
 
+# START functions used for error checking / verification
+def verify(isInit = False):
+    global system_am,system_e
+    global cur_timestep
+    am = angular_momentum(cur_timestep)
+    am_mag = np.sqrt(am.dot(am))
+    e = total_energy(cur_timestep)
+    if(isInit):
+        system_am = am_mag
+        system_e = e
+    else:
+        am_err = abs(-1+am_mag/system_am)
+        e_err = abs(-1+e/system_e)
+        print("initial AM:",system_am,"initial E:",system_e)
+        print("current AM:",am_mag,"current E:",e)
+        print("Angular Momentum error:",am_err,"Energy error:",e_err)
+
+def total_energy(t):
+    global n_bodies, G
+    kin = 0
+    pot = 0 
+
+    for i in range(n_bodies): 
+        kin = kin + M[i]*((V[i,t][0]**2)+(V[i,t][1]**2)+(V[i,t][2]**2))/2
+
+    for i in range(n_bodies):
+        for j in range(i):
+            r = np.subtract(X[i,t],X[j,t])
+            d = math.sqrt(np.dot(r,r))
+            pot = pot + -1*G*M[i]*M[j]*d
+
+    return kin+pot
+
+def angular_momentum(t):
+    global M,X,V
+    global n_bodies
+    am = np.array([0,0,0])
+
+    for i in range(n_bodies):
+        cross = np.cross(X[i,t],V[i,t])
+        am = am + M[i]*cross
+    
+    return am
+
+# END error checking
+
+
 # calculate force j exerts on i for each dimension
 def f_gravitational(i, j): # bodies contain m:[0] x:[1] v:[2]
     global G
@@ -337,4 +384,9 @@ if __name__ == '__main__':
     initRandom()
 
     init()
+
+    verify(isInit=True)
+
     loop()
+
+    verify()
