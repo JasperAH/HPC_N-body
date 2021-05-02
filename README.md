@@ -20,5 +20,5 @@
 - [ ] add k-means functionality to tUPL and python script to cluster bodies
 - [ ] add separate calculations for clusters and bodies
 - [ ] integrate body and cluster calculations
-- [ ] determine expected error (roughly, if necessary)
+- [x] determine expected error (roughly, if necessary) -> currently only before/after comparisons, not during calculations as it does not add much value with static timestep size
 - [ ] tbd...
