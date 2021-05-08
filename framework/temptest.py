@@ -34,16 +34,16 @@ n_timesteps = 1 #(60*60*24*365.25*sim_years)/dt
 cur_timestep = 1
 
 # We define our Tuple type here with fields m:'mass' x:'x' 'y' 'z' v:'vx' 'vy' 'vz'
-Tuple = collections.namedtuple('Tuple', 'i j kn t')
+Tuple = collections.namedtuple('Tuple', 'i j kn')
 
 
 # START functions used for error checking / verification
 def verify(isInit = False):
-    global system_am,system_e
+    global system_am,system_e,Time
     global cur_timestep
-    am = angular_momentum(cur_timestep)
+    am = angular_momentum(Time[0,1])
     am_mag = np.sqrt(am.dot(am))
-    e = total_energy(cur_timestep)
+    e = total_energy(Time[0,1])
     if(isInit):
         system_am = am_mag
         system_e = e
@@ -98,14 +98,14 @@ def init():
     '''Initialize some tuple reservoirs (e.g. T) and necessary shared
     spaces (e.g. S). Shared spaces are usually modeled with a dictionary
     that is indexed with tuples.'''
-    global T, Kx, Kv, K_mask, T_mask, Done
+    global T, Kx, Kv, K_mask, T_mask, Done, Time, Printed
     global N, n_bodies
     global file 
     global M, X, V
     global n_timesteps, dt, n_outputs
     dt = sim_years/(n_outputs) # with 10 years and 1000 outputs this remains 0.01
     print("dt",dt)
-    n_timesteps = 20#int(2*math.pi*sim_years/dt) #should be more like: (60*60*24*365.25*sim_years)/dt?
+    n_timesteps = int(2*math.pi*sim_years/dt) #should be more like: (60*60*24*365.25*sim_years)/dt?
     print("n_timesteps",n_timesteps)
 
     inputdata = np.loadtxt(file) #  n rows, and columns that are 'mass' 'x' 'y' 'z' 'vx' 'vy' 'vz'
@@ -124,25 +124,25 @@ def init():
     
     #T_mask = [0] * (n_timesteps+1)
     Done = {}
+    Time = {}
+    Printed = {}
 
     for i in range(len(N)):
-        M[i] = N[i][0]
-        #X[i,cur_timestep] = N[i][1]
-        #V[i,cur_timestep] = N[i][2]
+        M[i] = N[i][0]*(15000000000) 
+        X[i,cur_timestep] = N[i][1]
+        V[i,cur_timestep] = N[i][2]
         for j in range(len(N)):
             if i is not j:
                 for kn in range(1,6): # [1,5]
                     for t in range(1,n_timesteps+1): # [1,n_timesteps]
-                        X[i,t] = N[i][1]
-                        V[i,t] = N[i][2]
-                        T.append(Tuple(i,j,kn,t))
-                        K_mask[i,kn,t] = 0
                         Kv[i,j,kn,t] = 0
                         Kx[i,kn,t] = 0
                         Done[i,j,kn,t] = False
-                        T_mask[t] = 0
+                        Printed[i,t] = False
+                    T.append(Tuple(i,j,kn))
+                Time[i,j] = 1 # of 0, not sure
         filedrop(0, i, N[i][1], N[i][2])
-    T_mask[0] = len(N)
+        Printed[i,0] = True 
 
 
 #dataplotting function 
@@ -183,6 +183,21 @@ def sumJs(i,kn,t):
         return_value = return_value + Kv[i,j,kn,t]
     return return_value
 
+def doneJs(i,kn,t):
+    global Done, n_bodies
+    for j in range(n_bodies):
+        if i is not j:
+            if not Done[i,j,kn,t]:
+                return False
+    return True
+
+def printedJs(t):
+    global Printed, n_bodies
+    for j in range(n_bodies):
+        if not Printed[j,t]:
+            return False
+    return True
+
 ######
 #   SERIAL CODE CONDITIONS AND BODIES
 ###
@@ -194,71 +209,73 @@ sc_body = []
 ##
 
 def rcond1(t):
+    global Done, Time
     '''Implement the condition for serial code 1, return a boolean'''
-    return not Done[t.i,t.j,t.kn,t.t]
+    return not Done[t.i,t.j,t.kn,Time[t.i,t.j]]
 
 def rSC1body(t):
-    global T, K_mask
+    global T, K_mask, Time, Done, Printed
     global T_mask, cur_timestep, n_timesteps, N
     '''The actual serial code to execute if cond1 is True'''
-    temp_i = [M[t.i],X[t.i,t.t],V[t.i,t.t]]
-    temp_j = [M[t.j],X[t.j,t.t],V[t.j,t.t]]
+    temp_i = [M[t.i],X[t.i,Time[t.i,t.j]],V[t.i,Time[t.i,t.j]]]
+    temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],V[t.j,Time[t.i,t.j]]]
     a = f_gravitational(temp_i,temp_j)/M[t.i]
-	
-    Kv[t.i,t.j,1,t.t] = a*dt
-    Kx[t.i,1,t.t] = V[t.i,t.t] * dt
+    
+    Kv[t.i,t.j,1,Time[t.i,t.j]] = a*dt
+    Kx[t.i,1,Time[t.i,t.j]] = V[t.i,Time[t.i,t.j]] * dt
 
 
-    temp_i = [M[t.i],X[t.i,t.t],V[t.i,t.t]]
-    temp_j = [M[t.j],X[t.j,t.t],V[t.j,t.t]]
-    temp_i[1] = temp_i[1] + Kx[t.i,1,t.t]/2
-    temp_j[1] = temp_j[1] + Kx[t.j,1,t.t]/2
+    temp_i = [M[t.i],X[t.i,Time[t.i,t.j]],V[t.i,Time[t.i,t.j]]]
+    temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],V[t.j,Time[t.i,t.j]]]
+    temp_i[1] = temp_i[1] + Kx[t.i,1,Time[t.i,t.j]]/2
+    temp_j[1] = temp_j[1] + Kx[t.j,1,Time[t.i,t.j]]/2
     a = f_gravitational(temp_i,temp_j)/M[t.i]
-	
-    Kv[t.i,t.j,2,t.t] = a*dt
-    kv1 = sumJs(t.i,1,t.t)#Kv[t.i,1,t.t])
-    Kx[t.i,2,t.t] = (V[t.i,t.t] + kv1/2) * dt
+    
+    Kv[t.i,t.j,2,Time[t.i,t.j]] = a*dt
+    kv1 = sumJs(t.i,1,Time[t.i,t.j])#Kv[t.i,1,Time[t.i,t.j]])
+    Kx[t.i,2,Time[t.i,t.j]] = (V[t.i,Time[t.i,t.j]] + kv1/2) * dt
 
 
-    temp_i = [M[t.i],X[t.i,t.t],V[t.i,t.t]]
-    temp_j = [M[t.j],X[t.j,t.t],V[t.j,t.t]]
-    temp_i[1] = temp_i[1] + Kx[t.i,2,t.t]/2
-    temp_j[1] = temp_j[1] + Kx[t.j,2,t.t]/2
+    temp_i = [M[t.i],X[t.i,Time[t.i,t.j]],V[t.i,Time[t.i,t.j]]]
+    temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],V[t.j,Time[t.i,t.j]]]
+    temp_i[1] = temp_i[1] + Kx[t.i,2,Time[t.i,t.j]]/2
+    temp_j[1] = temp_j[1] + Kx[t.j,2,Time[t.i,t.j]]/2
     a = f_gravitational(temp_i,temp_j)/M[t.i]
-	
-    Kv[t.i,t.j,3,t.t] = a*dt
-    kv2 = sumJs(t.i, 2, t.t)#Kv[t.i,2,t.t])
-    Kx[t.i,3,t.t] = (V[t.i,t.t] + kv2/2) * dt
+    
+    Kv[t.i,t.j,3,Time[t.i,t.j]] = a*dt
+    kv2 = sumJs(t.i, 2, Time[t.i,t.j])#Kv[t.i,2,Time[t.i,t.j]])
+    Kx[t.i,3,Time[t.i,t.j]] = (V[t.i,Time[t.i,t.j]] + kv2/2) * dt
 
 
-    temp_i = [M[t.i],X[t.i,t.t],V[t.i,t.t]]
-    temp_j = [M[t.j],X[t.j,t.t],V[t.j,t.t]]
-    temp_i[1] = temp_i[1] + Kx[t.i,3,t.t]
-    temp_j[1] = temp_j[1] + Kx[t.j,3,t.t]
+    temp_i = [M[t.i],X[t.i,Time[t.i,t.j]],V[t.i,Time[t.i,t.j]]]
+    temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],V[t.j,Time[t.i,t.j]]]
+    temp_i[1] = temp_i[1] + Kx[t.i,3,Time[t.i,t.j]]
+    temp_j[1] = temp_j[1] + Kx[t.j,3,Time[t.i,t.j]]
     a = f_gravitational(temp_i,temp_j)/M[t.i]
-	
-    Kv[t.i,t.j,4,t.t] = a*dt
-    kv3 = sumJs(t.i, 3, t.t)#Kv[t.i,3,t.t])
-    Kx[t.i,4,t.t] = (V[t.i,t.t] + kv3) * dt
-	
-	
-	
-    X[t.i,t.t+1] = X[t.i,t.t] + (Kx[t.i,1,t.t] + 2*Kx[t.i,2,t.t] + 2*Kx[t.i,3,t.t] + Kx[t.i,4,t.t])/6
-    kv4 = sumJs(t.i,4,t.t)#Kv[t.i,4,t.t]
-    V[t.i,t.t+1] = V[t.i,t.t] + (kv1 + 2*kv2 + 2*kv3 + kv4)/6
-	
-    if(t.kn == 1 and (t.t == 1 or Done[t.i,t.j,5,t.t-1] )) or (t.kn > 1 and Done[t.i,t.j,t.kn-1,t.t]):
-        Done[t.i,t.j,t.kn,t.t] = True
-        #print("Done: i=", t.i, "j=", t.j, "k=", t.kn, "t=", t.t)
-	
-        if(t.kn == 5):
-			# deze timestepping heb ik behouden puur vanwege de output hieronder
-			T_mask[cur_timestep] = T_mask[cur_timestep] + 1
-			#if(t.i == 0 and cur_timestep % (n_timesteps/n_outputs) < 1.0): print(cur_timestep)
-			if cur_timestep % (n_timesteps/n_outputs) < 1.0: #division should produce float, no cast required (from __future__)
-				filedrop(cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1])
-			if T_mask[cur_timestep] == len(N):
-				cur_timestep = cur_timestep + 1
+    
+    Kv[t.i,t.j,4,Time[t.i,t.j]] = a*dt
+    kv3 = sumJs(t.i, 3, Time[t.i,t.j])#Kv[t.i,3,Time[t.i,t.j]])
+    Kx[t.i,4,Time[t.i,t.j]] = (V[t.i,Time[t.i,t.j]] + kv3) * dt
+    
+    
+    
+    X[t.i,Time[t.i,t.j]+1] = X[t.i,Time[t.i,t.j]] + (Kx[t.i,1,Time[t.i,t.j]] + 2*Kx[t.i,2,Time[t.i,t.j]] + 2*Kx[t.i,3,Time[t.i,t.j]] + Kx[t.i,4,Time[t.i,t.j]])/6
+    kv4 = sumJs(t.i,4,Time[t.i,t.j])#Kv[t.i,4,Time[t.i,t.j]]
+    V[t.i,Time[t.i,t.j]+1] = V[t.i,Time[t.i,t.j]] + (kv1 + 2*kv2 + 2*kv3 + kv4)/6
+    
+    if(t.kn == 1 and (Time[t.i,t.j] == 1 or printedJs(Time[t.i,t.j]-1))) or (t.kn > 1 and doneJs(t.i,t.kn-1,Time[t.i,t.j])):
+        Done[t.i,t.j,t.kn,Time[t.i,t.j]] = True
+        
+        if(t.kn == 5 and not Printed[t.i,Time[t.i,t.j]]):
+            Printed[t.i,Time[t.i,t.j]] = True
+            if(t.i == 0 and Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0): print("{:0.1f}%".format((Time[t.i,t.j]/n_timesteps)*100))
+            if Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0: #division should produce float, no cast required (from __future__)
+                filedrop(Time[t.i,t.j],t.i,X[t.i,Time[t.i,t.j]+1],V[t.i,Time[t.i,t.j]+1])
+            if(Time[t.i,t.j] < n_timesteps):
+                for j in range(n_bodies):
+                    if t.i is not j:
+                        Time[t.i,j] = Time[t.i,j] + 1
+
 
 def cond1(t):
     '''Implement the condition for serial code 1, return a boolean'''
@@ -436,7 +453,7 @@ def loop():
         size = len(T)
         for t in tmp:
             body(t)
-        # if len(T) == size and False: # this no longer works with dynamically adding tupls
+        # if len(T) == size: # and False: # this no longer works with dynamically adding tupls
         #     print("Stuck, bad exit")
         #     print(T)
         #     return
