@@ -1,0 +1,154 @@
+###### Global variables and functions ######
+
+# gravitational constant
+G = 6.67408/100000000000 # 6.67408e-11
+# timestep size (arbitrary for now)
+dt = 0.01
+sim_years = 1
+n_timesteps = (60*60*24*365.25*sim_years)/dt
+cur_timestep = 1
+
+# calculate force j exerts on i for each dimension
+def F_gravitational(i, j){
+	global G
+	r = i.x-j.x
+	d = sqrt(r.x**2 + r.y**2 + r.z**2)
+	u = r/d
+	f = (-1*G*i.m*j.m)/(d**2)
+	return u*f
+}
+
+def sumJs(i,kn,t){
+	res = 0
+	for j in range(len(N)):
+		if i is not j:
+			res = res + Kv[i,j,kn,t]
+	return res
+}
+
+def doneJs(i,kn,t){
+	for j in range(len(N)):
+		if i is not j:
+			if not Done[i,j,kn,t]:
+				return False
+	return True
+}
+
+###### n-body tUPL spec ######
+
+T = {<i,j,kn> | i,j in #bodies, kn in [1,5]} 
+
+# addressed via e.g. Kx[i,j,kn,t] where i,j in N and k in [1,4], t in n_timesteps. Kx and Kv contain vector3s.
+Kx[] = 0
+Kv[] = 0
+
+# boolean to signify if specific tupl is done: Done[i,j,kn,t]
+Done[]
+# time, mass, position, velocity moved out of tupl
+Time[] # time of interaction between bodies i.e.: Time[i,j]
+# Property of body (mass,position in R3, velocity in R3), e.g.: M[i]
+M[]
+X[]
+V[]
+
+whilelem(<i,j,kn> in T){
+	if(!Done[i,j,kn,Time[i,j]){
+		temp_i = [M[i], X[i,Time[i,j]], V[i,Time[i,j]]]
+		temp_j = [M[j], X[j,Time[i,j]], V[j,Time[i,j]]]
+		a = F_gravitational(temp_i,temp_j)/M[i] 	# vector3 a contains x, y and z components
+		
+		Kv[i,j,1,Time[i,j]] = a*dt
+		Kx[i,1,Time[i,j]] = V[i,Time[i,j]] * dt
+		K_mask[i,kn,t] = K_mask[i,kn,t] + 1
+		
+		temp_i = [M[i], X[i,Time[i,j]], V[i,Time[i,j]]]
+		temp_j = [M[j], X[j,Time[i,j]], V[j,Time[i,j]]]
+		temp_i.X = temp_i.X + Kx[i,1,Time[i,j]]/2
+		temp_j.X = temp_j.X + Kx[j,1,Time[i,j]]/2
+		a = F_gravitational(temp_i,temp_j)/M[i]
+		
+		Kv[i,j,2,Time[i,j]] = a*dt
+		kv1 = sumJs(i,1,Time[i,j])
+		Kx[i,2,Time[i,j]] = (V[i,Time[i,j]] + kv1/2) * dt
+		
+		temp_i = [M[i], X[i,Time[i,j]], V[i,Time[i,j]]]
+		temp_j = [M[j], X[j,Time[i,j]], V[j,Time[i,j]]]
+		temp_i.X = temp_i.X + Kx[i,2,Time[i,j]]/2
+		temp_j.X = temp_j.X + Kx[j,2,Time[i,j]]/2
+		a = F_gravitational(temp_i,temp_j)/M[i]
+		
+		Kv[i,j,3,Time[i,j]] = a*dt
+		kv2 = sumJs(i,2,Time[i,j])
+		Kx[i,3,Time[i,j]] = (V[i,Time[i,j]] + kv2/2) * dt
+		
+		temp_i = [M[i], X[i,Time[i,j]], V[i,Time[i,j]]]
+		temp_j = [M[j], X[j,Time[i,j]], V[j,Time[i,j]]]
+		temp_i.X = temp_i.X + Kx[i,3,Time[i,j]]
+		temp_j.X = temp_j.X + Kx[j,3,Time[i,j]]
+		a = F_gravitational(temp_i,temp_j)/M[i]
+		
+		Kv[i,j,4,Time[i,j]] = a*dt
+		kv3 = sumJs(i,3,Time[i,j])
+		Kx[i,4,Time[i,j]] = (V[i,Time[i,j]] + kv3) * dt
+		
+		X[i,Time[i,j]+1] = X[i,Time[i,j]] + (Kx[i,1,Time[i,j]] + 2*Kx[i,2,Time[i,j]] + 2* Kx[i,3,Time[i,j]] + Kx[i,4,Time[i,j]])/6
+		kv4 = sumJs(i,3,Time[i,j])
+		V[i,Time[i,j]+1] = V[i,Time[i,j]] + (kv1 + 2*kv2 + 2*kv3 + kv4)/6
+		
+		if(kn == 1 and (Time[i,j] == 1 or doneJs(i,5,Time[i,j]-1)) or (kn > 1 and doneJs(i,kn-1,Time[i,j]))){
+			Done[i,j,kn,Time[i,j]] = True
+			if(kn == 5 and not Incremented[i,Time[i,j]]){
+				Incremented[i,Time[i,j]] = True
+				if(Time[i,j] < n_timesteps){
+					for _j in range(len(N)){
+						if i is not _j:
+							Time[i,_j] = Time[i,_j] + 1
+					}
+				}
+			}
+		}
+	}
+}
+
+###### K-means part, additional tUPL spec (also uses n-body global variables) ######
+
+t_curr = 0 # this is to be used to sync with n-body
+
+k = 3 # number of clusters, tbd
+
+k_means_interval = 10 # this will be used in n-body loop such that k-means can be executed less frequently
+
+def dist(a,b){
+	r = i.x-j.x
+	d = sqrt(r.x**2 + r.y**2 + r.z**2)
+	return d
+}
+
+T_K = {<i,k> | i in #bodies, k in k}
+
+K = [] # cluster membership, K[i,t]
+# Properties of K.
+#number of bodies in cluster k: K_size[k,t]
+K_size = [] 
+#position of cluster: K_x[k,t]
+K_x = []
+#mass of cluster: K_m[k,t] (since clusters are assumed to be far apart, angle between bodies is small. Therefore mass at position is comparable)
+K_m = []
+
+whilelem(<i,k> in T_K){
+	if(
+		K[i,t_curr] != k and 
+		dist(X[i,t_curr],K_x[k,t_curr]) < dist(X[i,t_curr],K_x[K[i,t_curr],t_curr]) and 
+		K_size[K[i,t_curr],t_curr] > 1 # prevent division by 0
+	){
+		K_x[K[i,t_curr],t_curr] = (K_x[K[i,t_curr],t_curr] * K_size[K[i,t_curr],t_curr] - X[i,t_curr])/(K_size[K[i,t_curr],t_curr]-1)
+		K_m[K[i,t_curr],t_curr] = K_m[K[i,t_curr],t_curr] - M[i]
+		K_size[K[i,t_curr],t_curr] = K_size[K[i,t_curr],t_curr] -1
+		
+		K_x[k,t_curr] = (K_x[k,t_curr]*K_size[k,t_curr] + X[i,t_curr])/(K_size[k,t_curr]+1)
+		K_m[k,t_curr] = K_m[k,t_curr] + M[i]
+		K_size[k,t_curr] = K_size[k,t_curr] + 1
+		
+		K[i,t_curr] = k
+	}
+}

@@ -33,6 +33,10 @@ sim_years = 1
 n_timesteps = 1 #(60*60*24*365.25*sim_years)/dt
 cur_timestep = 1
 
+k_means_interval = 10
+k = 3 #2
+k_means_Tuple = collections.namedtuple('kTuple', 'i k')
+
 # We define our Tuple type here with fields m:'mass' x:'x' 'y' 'z' v:'vx' 'vy' 'vz'
 Tuple = collections.namedtuple('Tuple', 'i j kn')
 
@@ -98,10 +102,11 @@ def init():
     '''Initialize some tuple reservoirs (e.g. T) and necessary shared
     spaces (e.g. S). Shared spaces are usually modeled with a dictionary
     that is indexed with tuples.'''
-    global T, Kx, Kv, K_mask, T_mask, Done, Time, Printed
+    global T, Kx, Kv, Done, Time, Printed
     global N, n_bodies
     global file 
     global M, X, V
+    global K
     global n_timesteps, dt, n_outputs
     dt = sim_years/(n_outputs) # with 10 years and 1000 outputs this remains 0.01
     print("dt",dt)
@@ -115,14 +120,11 @@ def init():
 
     Kx = {}
     Kv = {}
-    K_mask = {}
-    T_mask = {}
 
     M = {}
     X = {}
     V = {}
-    
-    #T_mask = [0] * (n_timesteps+1)
+
     Done = {}
     Time = {}
     Printed = {}
@@ -167,12 +169,6 @@ def filedrop(t, i, x, v): #cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1]
         outF.write("\n")
         outF.close()
 
-def add_tuple(i,j,kn,t):
-    global n_timesteps
-    if t <= n_timesteps:
-        T.append(Tuple(i,j,kn,t))
-        K_mask[i,kn,t] = 0
-
 def sumJs(i,kn,t):
     return_value = 0
     n = len(N)
@@ -214,8 +210,9 @@ def rcond1(t):
     return not Done[t.i,t.j,t.kn,Time[t.i,t.j]]
 
 def rSC1body(t):
-    global T, K_mask, Time, Done, Printed
-    global T_mask, cur_timestep, n_timesteps, N
+    global T, Time, Done, Printed
+    global cur_timestep, n_timesteps, N
+    global kmeans_to_print
     '''The actual serial code to execute if cond1 is True'''
     temp_i = [M[t.i],X[t.i,Time[t.i,t.j]],V[t.i,Time[t.i,t.j]]]
     temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],V[t.j,Time[t.i,t.j]]]
@@ -269,148 +266,113 @@ def rSC1body(t):
         if(t.kn == 5 and not Printed[t.i,Time[t.i,t.j]]):
             Printed[t.i,Time[t.i,t.j]] = True
             if(t.i == 0 and Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0): print("{:0.1f}%".format((Time[t.i,t.j]/n_timesteps)*100))
+            if(t.i == 0 and Time[t.i,t.j] % k_means_interval == 0): kmeans_doTimestep(Time[t.i,t.j]) # do kmeans timestep on results of previous timestep because this definitely has all bodies done
             if Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0: #division should produce float, no cast required (from __future__)
                 filedrop(Time[t.i,t.j],t.i,X[t.i,Time[t.i,t.j]+1],V[t.i,Time[t.i,t.j]+1])
+                if(t.i == 0): kmeans_to_print += 1
             if(Time[t.i,t.j] < n_timesteps):
                 for j in range(n_bodies):
                     if t.i is not j:
                         Time[t.i,j] = Time[t.i,j] + 1
 
+def kmeans_doTimestep(time):
+    global K, K_size, k, k_means_interval, k_means_Tuple, T_K, K_x, K_m
+    global N, n_bodies
+    global cur_timestep
+    # To update clusters, new body values need to be used
+    # to make sure cluster ID stays consistent, 
+    # use existing body/cluster membership to initialize before executing 
+    for _k in range(k):
+        K_size[_k,time] = 0
+        K_m[_k,time] = 0
+        K_x[_k,time] = np.array([0,0,0])
+    for i in range(n_bodies):
+        cluster = K[i,cur_timestep]
+        K[i,time] = cluster
+        K_m[cluster,time] = K_m[cluster,time] + M[i]
+        K_x[cluster,time] = (K_x[cluster,time]*K_size[cluster,time] + X[i,time])/(K_size[cluster,time]+1)
+        K_size[cluster,time] = K_size[cluster,time] + 1
+    cur_timestep = time
+    kmeans_loop()
 
-def cond1(t):
-    '''Implement the condition for serial code 1, return a boolean'''
-    return (t.kn == 1)
-    #return (t.i is not t.j and t.kn == 1 and t.t == cur_timestep)
-            # and K_mask[t.i,t.kn,t.t] < n_bodies-1 
-            # and K_mask[t.j,t.kn,t.t] < n_bodies-1)
+def kmeans_init():
+    global K, K_size, k, k_means_interval, k_means_Tuple, T_K, K_x, K_m, kmeans_to_print
+    global N, n_bodies
+    global M, X, V
+    # k means:T
+    T_K = []
+    K = {} # address using K[i,Time[i,j]] or something like that
+    K_size = {} # address using K_size[k,K[i,Time[i,j]]] or K_size[k,0] where number is time
+    K_x = {} #idem
+    K_m = {} #idem
 
-def SC1body(t):
-    global T, K_mask
-    '''The actual serial code to execute if cond1 is True'''
-    temp_i = [M[t.i],X[t.i,t.t],V[t.i,t.t]]
-    temp_j = [M[t.j],X[t.j,t.t],V[t.j,t.t]]
-    a = f_gravitational(temp_i,temp_j)/M[t.i]
-    Kv[t.i,t.kn] = Kv[t.i,t.kn] + a*dt
-    Kx[t.i,t.kn] = V[t.i,t.t] * dt
-    K_mask[t.i,t.kn,t.t] = K_mask[t.i,t.kn,t.t] + 1
+    kmeans_to_print = 0
 
-    #add_tuple(t.i,t.j,t.kn,t.t+1)
+    for _k in range(k):
+        K_size[_k,cur_timestep] = 0
+        K_m[_k,cur_timestep] = 0
+        K_x[_k,cur_timestep] = np.array([0,0,0])
 
-sc_cond.append(cond1)
-sc_body.append(SC1body)
+    for i in range(n_bodies):
+        for _k in range(k):
+            T_K.append(k_means_Tuple(i,_k))
+        cluster = random.randint(0,k-1) 
+        K[i,cur_timestep] = cluster
+        K_m[cluster,cur_timestep] = K_m[cluster,cur_timestep] + M[i]
+        K_x[cluster,cur_timestep] = (K_x[cluster,cur_timestep]*K_size[cluster,cur_timestep] + X[i,cur_timestep])/(K_size[cluster,cur_timestep]+1)
+        K_size[cluster,cur_timestep] = K_size[cluster,cur_timestep] + 1
 
-###
-# Serial code 2
-#
+def kmeans_dist(a, b):
+    r = np.subtract(a,b)
+    d = math.sqrt(np.dot(r,r))
+    return d
 
-def cond2(t):
-    '''Implement the condition for serial code 2, return a boolean'''
-    return (t.kn == 2)
-    #return (t.i is not t.j and t.kn == 2 and t.t == cur_timestep 
-    #        and K_mask[t.i,(t.kn-1),t.t] == n_bodies-1 
-    #        and K_mask[t.j,(t.kn-1),t.t] == n_bodies-1)
+def kmeans_cond(t):
+    global K, K_size, k, k_means_interval, k_means_Tuple, T_K, K_x, K_m
+    global M, X, V
+    # return true if:
+    # t.k is not the current cluster of i
+    # and
+    # the distance to t.k from i is less than the distance between i and its current cluster
+    return (K[t.i,cur_timestep] != t.k and 
+        (kmeans_dist(X[t.i,cur_timestep],K_x[t.k,cur_timestep]) < kmeans_dist(X[t.i,cur_timestep],K_x[K[t.i,cur_timestep],cur_timestep])) and
+        K_size[K[t.i,cur_timestep],cur_timestep] > 1) #divide by zero protection
 
-def SC2body(t):
-    global T, K_mask
-    '''The actual serial code to execute if cond2 is True'''
-    temp_i = [M[t.i],X[t.i,t.t],V[t.i,t.t]]
-    temp_j = [M[t.j],X[t.j,t.t],V[t.j,t.t]]
-    temp_i[1] = temp_i[1] + Kx[t.i,(t.kn-1)]/2
-    temp_j[1] = temp_j[1] + Kx[t.j,(t.kn-1)]/2
-    a = f_gravitational(temp_i,temp_j)/M[t.i]
-    Kv[t.i,t.kn] = Kv[t.i,t.kn] + a*dt
-    Kx[t.i,t.kn] = (V[t.i,t.t] + Kv[t.i,(t.kn-1)]/2) * dt
-    K_mask[t.i,t.kn,t.t] = K_mask[t.i,t.kn,t.t] + 1
+def kmeans_body(t):
+    global K, K_size, k, k_means_interval, k_means_Tuple, T_K, K_x, K_m
+    global M, X, V
+    K_x[K[t.i,cur_timestep],cur_timestep] = (K_x[K[t.i,cur_timestep],cur_timestep]*K_size[K[t.i,cur_timestep],cur_timestep] - X[t.i,cur_timestep])/(K_size[K[t.i,cur_timestep],cur_timestep]-1)
+    K_m[K[t.i,cur_timestep],cur_timestep] = K_m[K[t.i,cur_timestep],cur_timestep] - M[t.i]
+    K_size[K[t.i,cur_timestep],cur_timestep] = K_size[K[t.i,cur_timestep],cur_timestep]-1
 
-    #add_tuple(t.i,t.j,t.kn,t.t+1)
+    K_x[t.k,cur_timestep] = (K_x[t.k,cur_timestep]*K_size[t.k,cur_timestep] + X[t.i,cur_timestep])/(K_size[t.k,cur_timestep]+1)
+    K_m[t.k,cur_timestep] = K_m[t.k,cur_timestep] + M[t.i]
+    K_size[t.k,cur_timestep] = K_size[t.k,cur_timestep]+1
 
-sc_cond.append(cond2)
-sc_body.append(SC2body)
+    K[t.i,cur_timestep] = t.k
 
-###
-# Serial code 3
-#
+def kmeans_loop():
+    global K, K_size, k, k_means_interval, k_means_Tuple, T_K, K_x, K_m, kmeans_to_print
+    global N, n_bodies
+    global M, X, V
+    done = False
+    while not done:
+        tmp = list(T_K)
+        random.shuffle(tmp)
+        size = len(T_K)
+        for t in tmp:
+            if kmeans_cond(t):
+                kmeans_body(t)
 
-def cond3(t):
-    return (t.kn == 3)
-    #return (t.i is not t.j and t.kn == 3 and t.t == cur_timestep 
-    #        and K_mask[t.i,(t.kn-1),t.t] == n_bodies-1 
-    #        and K_mask[t.j,(t.kn-1),t.t] == n_bodies-1)
-
-def SC3body(t):
-    global T, K_mask
-    temp_i = [M[t.i],X[t.i,t.t],V[t.i,t.t]]
-    temp_j = [M[t.j],X[t.j,t.t],V[t.j,t.t]]
-    temp_i[1] = temp_i[1] + Kx[t.i,(t.kn-1)]/2
-    temp_j[1] = temp_j[1] + Kx[t.j,(t.kn-1)]/2
-    a = f_gravitational(temp_i,temp_j)/M[t.i]
-    Kv[t.i,t.kn] = Kv[t.i,t.kn] + a*dt
-    Kx[t.i,t.kn] = (V[t.i,t.t] + Kv[t.i,(t.kn-1)]/2) * dt
-    K_mask[t.i,t.kn,t.t] = K_mask[t.i,t.kn,t.t] + 1
-
-    #add_tuple(t.i,t.j,t.kn,t.t+1)
-
-sc_cond.append(cond3)
-sc_body.append(SC3body)
-
-###
-# Serial code 4
-#
-
-def cond4(t):
-    return (t.kn == 4)
-    #return (t.i is not t.j and t.kn == 4 and t.t == cur_timestep 
-    #        and K_mask[t.i,(t.kn-1),t.t] == n_bodies-1 
-    #        and K_mask[t.j,(t.kn-1),t.t] == n_bodies-1)
-
-def SC4body(t):
-    global T, K_mask
-    temp_i = [M[t.i],X[t.i,t.t],V[t.i,t.t]]
-    temp_j = [M[t.j],X[t.j,t.t],V[t.j,t.t]]
-    temp_i[1] = temp_i[1] + Kx[t.i,(t.kn-1)]
-    temp_j[1] = temp_j[1] + Kx[t.j,(t.kn-1)]
-    a = f_gravitational(temp_i,temp_j)/M[t.i]
-    Kv[t.i,t.kn] = Kv[t.i,t.kn] + a*dt
-    Kx[t.i,t.kn] = (V[t.i,t.t] + Kv[t.i,(t.kn-1)]) * dt
-    K_mask[t.i,t.kn,t.t] = K_mask[t.i,t.kn,t.t] + 1
-
-    #add_tuple(t.i,t.j,t.kn,t.t+1)
-
-sc_cond.append(cond4)
-sc_body.append(SC4body)
-
-###
-# Serial code 5
-#
-
-def cond5(t):
-    return (t.kn == 5)
-    #return (t.kn == 5 and t.t == cur_timestep and K_mask[t.i,t.kn,t.t] == 0
-    #        and K_mask[t.i,(t.kn-1),t.t] == n_bodies-1 
-    #        and K_mask[t.j,(t.kn-1),t.t] == n_bodies-1)
-
-def SC5body(t):
-    global T_mask, cur_timestep, n_timesteps
-    global T, K_mask, N
-    X[t.i,t.t+1] = X[t.i,t.t] + (Kx[t.i,1] + 2*Kx[t.i,2] + 2*Kx[t.i,3] + Kx[t.i,4])/6
-    V[t.i,t.t+1] = V[t.i,t.t] + (Kv[t.i,1] + 2*Kv[t.i,2] + 2*Kv[t.i,3] + Kv[t.i,4])/6
-    for index in range(1,5):
-        Kx[t.i,index] = 0
-        Kv[t.i,index] = 0
-    K_mask[t.i,t.kn,t.t] = 1
-    T_mask[cur_timestep] = T_mask[cur_timestep] + 1
-    if(t.i == 0 and cur_timestep % (n_timesteps/n_outputs) < 1.0): print(cur_timestep)
-    if cur_timestep % (n_timesteps/n_outputs) < 1.0: #division should produce float, no cast required (from __future__)
-        filedrop(cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1])
-    if T_mask[cur_timestep] == len(N):
-        cur_timestep = cur_timestep + 1
-
-    #add_tuple(t.i,t.j,t.kn,t.t+1)
-    
-sc_cond.append(cond5)
-sc_body.append(SC5body)
-
-
+        valid_left = False
+        for t in tmp:
+            valid_left |= kmeans_cond(t)
+        done = not valid_left
+    if(cur_timestep == 1): kmeans_to_print = 1
+    for _k in range(k):
+        for _ in range(kmeans_to_print):
+            filedrop(cur_timestep-1,n_bodies+_k,K_x[_k,cur_timestep],[0, 0, 0])
+    kmeans_to_print = 0
 ###
 # Loop mechanics
 ##
@@ -484,9 +446,13 @@ if __name__ == '__main__':
 
     init()
 
+    kmeans_init()
+    kmeans_loop()
+
     verify(isInit=True)
 
-
     loop()
+
+    kmeans_loop()
 
     verify()
