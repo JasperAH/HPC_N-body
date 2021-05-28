@@ -319,7 +319,7 @@ def kmeans_init():
         cluster = random.randint(0,k-1) 
         K[i,cur_timestep] = cluster
         K_m[cluster,cur_timestep] = K_m[cluster,cur_timestep] + M[i]
-        K_x[cluster,cur_timestep] = (K_x[cluster,cur_timestep]*K_size[cluster,cur_timestep] + X[i,cur_timestep])/(K_size[cluster,cur_timestep]+1)
+        K_x[cluster,cur_timestep] = (K_x[cluster,cur_timestep]*K_m[cluster,cur_timestep] + X[i,cur_timestep]*M[i])/(K_m[cluster,cur_timestep]+M[i])
         K_size[cluster,cur_timestep] = K_size[cluster,cur_timestep] + 1
 
 def kmeans_dist(a, b):
@@ -341,11 +341,11 @@ def kmeans_cond(t):
 def kmeans_body(t):
     global K, K_size, k, k_means_interval, k_means_Tuple, T_K, K_x, K_m
     global M, X, V
-    K_x[K[t.i,cur_timestep],cur_timestep] = (K_x[K[t.i,cur_timestep],cur_timestep]*K_size[K[t.i,cur_timestep],cur_timestep] - X[t.i,cur_timestep])/(K_size[K[t.i,cur_timestep],cur_timestep]-1)
+    K_x[K[t.i,cur_timestep],cur_timestep] = (K_x[K[t.i,cur_timestep],cur_timestep]*K_m[K[t.i,cur_timestep],cur_timestep] - X[t.i,cur_timestep]*M[t.i])/(K_m[K[t.i,cur_timestep],cur_timestep] - M[t.i])
     K_m[K[t.i,cur_timestep],cur_timestep] = K_m[K[t.i,cur_timestep],cur_timestep] - M[t.i]
     K_size[K[t.i,cur_timestep],cur_timestep] = K_size[K[t.i,cur_timestep],cur_timestep]-1
 
-    K_x[t.k,cur_timestep] = (K_x[t.k,cur_timestep]*K_size[t.k,cur_timestep] + X[t.i,cur_timestep])/(K_size[t.k,cur_timestep]+1)
+    K_x[t.k,cur_timestep] = (K_x[t.k,cur_timestep]*K_m[t.k,cur_timestep] + X[t.i,cur_timestep]*M[t.i])/(K_m[t.k,cur_timestep] + M[t.i])
     K_m[t.k,cur_timestep] = K_m[t.k,cur_timestep] + M[t.i]
     K_size[t.k,cur_timestep] = K_size[t.k,cur_timestep]+1
 

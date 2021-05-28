@@ -141,11 +141,11 @@ whilelem(<i,k> in T_K){
 		dist(X[i,t_curr],K_x[k,t_curr]) < dist(X[i,t_curr],K_x[K[i,t_curr],t_curr]) and 
 		K_size[K[i,t_curr],t_curr] > 1 # prevent division by 0
 	){
-		K_x[K[i,t_curr],t_curr] = (K_x[K[i,t_curr],t_curr] * K_size[K[i,t_curr],t_curr] - X[i,t_curr])/(K_size[K[i,t_curr],t_curr]-1)
+		K_x[K[i,t_curr],t_curr] = (K_x[K[i,t_curr],t_curr] * K_m[K[i,t_curr],t_curr] - X[i,t_curr]*M[i])/(K_m[K[i,t_curr],t_curr]-M[i])
 		K_m[K[i,t_curr],t_curr] = K_m[K[i,t_curr],t_curr] - M[i]
 		K_size[K[i,t_curr],t_curr] = K_size[K[i,t_curr],t_curr] -1
 		
-		K_x[k,t_curr] = (K_x[k,t_curr]*K_size[k,t_curr] + X[i,t_curr])/(K_size[k,t_curr]+1)
+		K_x[k,t_curr] = (K_x[k,t_curr]*K_m[k,t_curr] + X[i,t_curr]*M[i])/(K_m[k,t_curr] + M[i])
 		K_m[k,t_curr] = K_m[k,t_curr] + M[i]
 		K_size[k,t_curr] = K_size[k,t_curr] + 1
 		
