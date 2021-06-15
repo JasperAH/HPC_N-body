@@ -106,7 +106,7 @@ def init():
     global N, n_bodies
     global file 
     global M, X, V
-    global K
+    global K, k
     global n_timesteps, dt, n_outputs
     dt = sim_years/(n_outputs) # with 10 years and 1000 outputs this remains 0.01
     print("dt",dt)
@@ -145,7 +145,19 @@ def init():
                 Time[i,j] = 1 # of 0, not sure
         filedrop(0, i, N[i][1], N[i][2])
         Printed[i,0] = True 
-
+    for i in range(-k, 0):
+        V[i,cur_timestep] = 1
+        for j in range(len(N)):
+            if i is not j:
+                for kn in range(1,6): # [1,5]
+                    for t in range(1,n_timesteps+1): # [1,n_timesteps]
+                        Kv[i,j,kn,t] = 0
+                        Kx[i,kn,t] = 0
+                        Done[i,j,kn,t] = False
+                        Printed[i,t] = False
+                    T.append(Tuple(i,j,kn))
+                Time[i,j] = 1 # of 0, not sure
+        Printed[i,0] = True 
 
 #dataplotting function 
 def filedrop(t, i, x, v): #cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1]
@@ -180,11 +192,17 @@ def sumJs(i,kn,t):
     return return_value
 
 def doneJs(i,kn,t):
-    global Done, n_bodies
-    for j in range(n_bodies):
-        if i is not j:
-            if not Done[i,j,kn,t]:
-                return False
+    global Done, n_bodies, k, K
+    if i<0:
+        for j in range(n_bodies):
+            if (i is not j) and K[i, Time[i,j]] == K[j, Time[i,j]]:
+                if not Done[i,j,kn,t]:
+                    return False
+    else:
+        for j in range(-k, n_bodies):
+            if (i is not j) and K[i, Time[i,j]] == K[j, Time[i,j]]:
+                if not Done[i,j,kn,t]:
+                    return False
     return True
 
 def printedJs(t):
@@ -205,17 +223,19 @@ sc_body = []
 ##
 
 def rcond1(t):
-    global Done, Time
+    global Done, Time, K
     '''Implement the condition for serial code 1, return a boolean'''
-    return not Done[t.i,t.j,t.kn,Time[t.i,t.j]]
+    return ((not Done[t.i,t.j,t.kn,Time[t.i,t.j]]) and (((t.j < 0 or t.i < 0) and not (t.j < 0 and t.i < 0)) or K[t.i,Time[t.i,t.j]] == K[t.j,Time[t.i,t.j]]))
 
 def rSC1body(t):
     global T, Time, Done, Printed
     global cur_timestep, n_timesteps, N
     global kmeans_to_print
+    global K_size, K_m, K_x
+    clustering = False
     '''The actual serial code to execute if cond1 is True'''
     temp_i = [M[t.i],X[t.i,Time[t.i,t.j]],V[t.i,Time[t.i,t.j]]]
-    temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],V[t.j,Time[t.i,t.j]]]
+    temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],0]
     a = f_gravitational(temp_i,temp_j)/M[t.i]
     
     Kv[t.i,t.j,1,Time[t.i,t.j]] = a*dt
@@ -223,7 +243,7 @@ def rSC1body(t):
 
 
     temp_i = [M[t.i],X[t.i,Time[t.i,t.j]],V[t.i,Time[t.i,t.j]]]
-    temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],V[t.j,Time[t.i,t.j]]]
+    temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],0]
     temp_i[1] = temp_i[1] + Kx[t.i,1,Time[t.i,t.j]]/2
     temp_j[1] = temp_j[1] + Kx[t.j,1,Time[t.i,t.j]]/2
     a = f_gravitational(temp_i,temp_j)/M[t.i]
@@ -234,7 +254,7 @@ def rSC1body(t):
 
 
     temp_i = [M[t.i],X[t.i,Time[t.i,t.j]],V[t.i,Time[t.i,t.j]]]
-    temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],V[t.j,Time[t.i,t.j]]]
+    temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],0]
     temp_i[1] = temp_i[1] + Kx[t.i,2,Time[t.i,t.j]]/2
     temp_j[1] = temp_j[1] + Kx[t.j,2,Time[t.i,t.j]]/2
     a = f_gravitational(temp_i,temp_j)/M[t.i]
@@ -245,7 +265,7 @@ def rSC1body(t):
 
 
     temp_i = [M[t.i],X[t.i,Time[t.i,t.j]],V[t.i,Time[t.i,t.j]]]
-    temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],V[t.j,Time[t.i,t.j]]]
+    temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],0]
     temp_i[1] = temp_i[1] + Kx[t.i,3,Time[t.i,t.j]]
     temp_j[1] = temp_j[1] + Kx[t.j,3,Time[t.i,t.j]]
     a = f_gravitational(temp_i,temp_j)/M[t.i]
@@ -259,9 +279,20 @@ def rSC1body(t):
     X[t.i,Time[t.i,t.j]+1] = X[t.i,Time[t.i,t.j]] + (Kx[t.i,1,Time[t.i,t.j]] + 2*Kx[t.i,2,Time[t.i,t.j]] + 2*Kx[t.i,3,Time[t.i,t.j]] + Kx[t.i,4,Time[t.i,t.j]])/6
     kv4 = sumJs(t.i,4,Time[t.i,t.j])#Kv[t.i,4,Time[t.i,t.j]]
     V[t.i,Time[t.i,t.j]+1] = V[t.i,Time[t.i,t.j]] + (kv1 + 2*kv2 + 2*kv3 + kv4)/6
-    
     if(t.kn == 1 and (Time[t.i,t.j] == 1 or printedJs(Time[t.i,t.j]-1))) or (t.kn > 1 and doneJs(t.i,t.kn-1,Time[t.i,t.j])):
         Done[t.i,t.j,t.kn,Time[t.i,t.j]] = True
+        print("body", t)
+        print(K[t.i,Time[t.i,t.j]], K[t.j,Time[t.i,t.j]])
+        print("done", Time[t.i,t.j])
+        for _i in range(-k, n_bodies):
+            for _j in range(n_bodies):
+                if _i is not _j:
+                    print(_i, ", ", _j, ", ", Done[_i,_j,t.kn,Time[t.i,t.j]])
+        
+        for _j in range(-k, n_bodies):
+            for _i in range(n_bodies):
+                if _i is not _j:
+                    print(_i, ", ", _j, ", ", Done[_i,_j,t.kn,Time[t.i,t.j]])
         
         if(t.kn == 5 and not Printed[t.i,Time[t.i,t.j]]):
             Printed[t.i,Time[t.i,t.j]] = True
@@ -282,23 +313,30 @@ def kmeans_doTimestep(time):
     # To update clusters, new body values need to be used
     # to make sure cluster ID stays consistent, 
     # use existing body/cluster membership to initialize before executing 
-    for _k in range(k):
+    for _k in range(1,k+1):
         K_size[_k,time] = 0
         K_m[_k,time] = 0
         K_x[_k,time] = np.array([0,0,0])
     for i in range(n_bodies):
         cluster = K[i,cur_timestep]
-        K[i,time] = cluster
-        K_m[cluster,time] = K_m[cluster,time] + M[i]
-        K_x[cluster,time] = (K_x[cluster,time]*K_size[cluster,time] + X[i,time])/(K_size[cluster,time]+1)
-        K_size[cluster,time] = K_size[cluster,time] + 1
+        for _interval in range(k_means_interval):
+            K[i,time + _interval] = cluster
+            K_m[cluster,time + _interval] = K_m[cluster,time] + M[i]
+            K_x[cluster,time + _interval] = (K_x[cluster,time]*K_size[cluster,time] + X[i,time])/(K_size[cluster,time]+1)
+            K_size[cluster,time + _interval] = K_size[cluster,time] + 1
     cur_timestep = time
     kmeans_loop()
+
+def kmeans_dist(a, b):
+    r = np.subtract(a,b)
+    d = math.sqrt(np.dot(r,r))
+    return d
 
 def kmeans_init():
     global K, K_size, k, k_means_interval, k_means_Tuple, T_K, K_x, K_m, kmeans_to_print
     global N, n_bodies
-    global M, X, V
+    global M, X, V, T
+    global kx, cur_timestep
     # k means:T
     T_K = []
     K = {} # address using K[i,Time[i,j]] or something like that
@@ -308,24 +346,46 @@ def kmeans_init():
 
     kmeans_to_print = 0
 
-    for _k in range(k):
+    for _k in range(1,k+1):
         K_size[_k,cur_timestep] = 0
         K_m[_k,cur_timestep] = 0
         K_x[_k,cur_timestep] = np.array([0,0,0])
 
+    cluster = 1
     for i in range(n_bodies):
-        for _k in range(k):
+        for t in range(1,n_timesteps+1):
+            K[i,t] = 0
+        for _k in range(1,k+1):
             T_K.append(k_means_Tuple(i,_k))
-        cluster = random.randint(0,k-1) 
-        K[i,cur_timestep] = cluster
-        K_m[cluster,cur_timestep] = K_m[cluster,cur_timestep] + M[i]
-        K_x[cluster,cur_timestep] = (K_x[cluster,cur_timestep]*K_m[cluster,cur_timestep] + X[i,cur_timestep]*M[i])/(K_m[cluster,cur_timestep]+M[i])
-        K_size[cluster,cur_timestep] = K_size[cluster,cur_timestep] + 1
+        if cluster > k:
+            min_dist = kmeans_dist(X[i,cur_timestep],K_x[1,cur_timestep])
+            clus = 1
+            for _k in range(2,k+1):
+                if kmeans_dist(X[i,cur_timestep],K_x[_k,cur_timestep]) < min_dist:
+                    min_dist = kmeans_dist(X[i,cur_timestep],K_x[_k,cur_timestep])
+                    clus = _k
+            K[i,cur_timestep] = clus
+            K_m[clus,cur_timestep] = K_m[clus,cur_timestep] + M[i]
+            K_x[clus,cur_timestep] = (K_x[clus,cur_timestep]*K_m[clus,cur_timestep] + X[i,cur_timestep]*M[i])/(K_m[clus,cur_timestep]+M[i])
+            K_size[clus,cur_timestep] = K_size[clus,cur_timestep] + 1  
+        else:
+            K[i,cur_timestep] = cluster
+            K_m[cluster,cur_timestep] = K_m[cluster,cur_timestep] + M[i]
+            K_x[cluster,cur_timestep] = (K_x[cluster,cur_timestep]*K_m[cluster,cur_timestep] + X[i,cur_timestep]*M[i])/(K_m[cluster,cur_timestep]+M[i])
+            K_size[cluster,cur_timestep] = K_size[cluster,cur_timestep] + 1
+            cluster = cluster + 1
 
-def kmeans_dist(a, b):
-    r = np.subtract(a,b)
-    d = math.sqrt(np.dot(r,r))
-    return d
+    for i in range(n_bodies):
+        for _k in range(1,k+1):
+            for kn in range(1, 6):
+                Time[i,-_k] = 1 # of 0, not sure
+                for t in range(1,n_timesteps+1): # [1,n_timesteps]
+                    Kv[i,-_k,kn,t] = 0
+                    Kx[-_k,kn,t] = 0
+                    Done[i,-_k,kn,t] = False
+                    K[-_k, t] = _k
+                T.append(Tuple(i,-_k,kn))
+
 
 def kmeans_cond(t):
     global K, K_size, k, k_means_interval, k_means_Tuple, T_K, K_x, K_m
@@ -369,10 +429,22 @@ def kmeans_loop():
             valid_left |= kmeans_cond(t)
         done = not valid_left
     if(cur_timestep == 1): kmeans_to_print = 1
-    for _k in range(k):
+    for _k in range(1,k+1):
         for _ in range(kmeans_to_print):
             filedrop(cur_timestep-1,n_bodies+_k,K_x[_k,cur_timestep],[0, 0, 0])
     kmeans_to_print = 0
+
+    for _k in range(1,k+1):
+        M[-_k] = K_m[_k,cur_timestep]
+        X[-_k,cur_timestep] = K_x[_k, cur_timestep]
+
+
+
+    #TODO De plek om nieuwe waardes te updaten van M en X voor clusters
+    #en tuples toe te voegen of verwijderen uit reservoir
+    #TODO opvangen kan ook met K[i] == K[j] opvangen bij rcond check
+    #Tuples metnNegatieve Js moeten hier (ong) toegevoegd worden???
+    #Done wordt lelijk
 ###
 # Loop mechanics
 ##
