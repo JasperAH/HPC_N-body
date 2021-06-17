@@ -33,8 +33,8 @@ sim_years = 1
 n_timesteps = 1 #(60*60*24*365.25*sim_years)/dt
 cur_timestep = 1
 
-k_means_interval = 10
-k = 3 #2
+k_means_interval = 2 #10
+k = 2 #2
 k_means_Tuple = collections.namedtuple('kTuple', 'i k')
 
 # We define our Tuple type here with fields m:'mass' x:'x' 'y' 'z' v:'vx' 'vy' 'vz'
@@ -161,9 +161,7 @@ def init():
 
 #dataplotting function 
 def filedrop(t, i, x, v): #cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1]
-    #print("TADA Filedrop:")
     file_name = "particle_" + str(i+1) + ".dat"
-    #print(file_name)
     location = "output_data/"
     white = "        "
     #data = str(t) + white + str(X[i, t][0]) + white + str(X[i, t][1]) + white + str(X[i, t][2]) + white + str(V[i, t][0]) + white + str(V[i, t][1]) + white + str(V[i, t][2])
@@ -195,11 +193,15 @@ def doneJs(i,kn,t):
     global Done, n_bodies, k, K
     if i<0:
         for j in range(n_bodies):
-            if (i is not j) and K[i, Time[i,j]] == K[j, Time[i,j]]:
+            if (i is not j) and K[i, Time[i,j]] != K[j, Time[i,j]]:
                 if not Done[i,j,kn,t]:
                     return False
     else:
-        for j in range(-k, n_bodies):
+        for j in range(-k, 0):
+            if (i is not j) and K[i, Time[i,j]] != K[j, Time[i,j]]:
+                if not Done[i,j,kn,t]:
+                    return False
+        for j in range(0, n_bodies):
             if (i is not j) and K[i, Time[i,j]] == K[j, Time[i,j]]:
                 if not Done[i,j,kn,t]:
                     return False
@@ -207,7 +209,7 @@ def doneJs(i,kn,t):
 
 def printedJs(t):
     global Printed, n_bodies
-    for j in range(n_bodies):
+    for j in range(-k,n_bodies):
         if not Printed[j,t]:
             return False
     return True
@@ -225,14 +227,21 @@ sc_body = []
 def rcond1(t):
     global Done, Time, K
     '''Implement the condition for serial code 1, return a boolean'''
-    return ((not Done[t.i,t.j,t.kn,Time[t.i,t.j]]) and (((t.j < 0 or t.i < 0) and not (t.j < 0 and t.i < 0)) or K[t.i,Time[t.i,t.j]] == K[t.j,Time[t.i,t.j]]))
+    res = ((not Done[t.i,t.j,t.kn,Time[t.i,t.j]]) and (
+            ((t.j < 0 or t.i < 0) and not (t.j < 0 and t.i < 0) and not (K[t.i,Time[t.i,t.j]] == K[t.j,Time[t.i,t.j]])) 
+            or ((t.j >= 0 and t.i >= 0) and K[t.i,Time[t.i,t.j]] == K[t.j,Time[t.i,t.j]])
+        ))
+    #print("rcond",t.i,t.j,K[t.i,Time[t.i,t.j]],K[t.j,Time[t.i,t.j]],(Done[t.i,t.j,t.kn,Time[t.i,t.j]]),t.kn, res)
+    return res
 
 def rSC1body(t):
     global T, Time, Done, Printed
     global cur_timestep, n_timesteps, N
     global kmeans_to_print
     global K_size, K_m, K_x
-    clustering = False
+    #clustering = False
+    print("start body t:",t,Time[t.i,t.j],K[t.i,Time[t.i,t.j]],K[t.j,Time[t.i,t.j]])
+    if t.kn == 1 and Time[t.i,t.j] > 1: print("printed",Printed[t.j,Time[t.i,t.j]-1])
     '''The actual serial code to execute if cond1 is True'''
     temp_i = [M[t.i],X[t.i,Time[t.i,t.j]],V[t.i,Time[t.i,t.j]]]
     temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],0]
@@ -275,20 +284,24 @@ def rSC1body(t):
     Kx[t.i,4,Time[t.i,t.j]] = (V[t.i,Time[t.i,t.j]] + kv3) * dt
     
     
-    
     X[t.i,Time[t.i,t.j]+1] = X[t.i,Time[t.i,t.j]] + (Kx[t.i,1,Time[t.i,t.j]] + 2*Kx[t.i,2,Time[t.i,t.j]] + 2*Kx[t.i,3,Time[t.i,t.j]] + Kx[t.i,4,Time[t.i,t.j]])/6
     kv4 = sumJs(t.i,4,Time[t.i,t.j])#Kv[t.i,4,Time[t.i,t.j]]
     V[t.i,Time[t.i,t.j]+1] = V[t.i,Time[t.i,t.j]] + (kv1 + 2*kv2 + 2*kv3 + kv4)/6
-    if(t.kn == 1 and (Time[t.i,t.j] == 1 or printedJs(Time[t.i,t.j]-1))) or (t.kn > 1 and doneJs(t.i,t.kn-1,Time[t.i,t.j])):
+
+    #print("set X:",t.i,Time[t.i,t.j]+1,X[t.i,Time[t.i,t.j]+1])
+    print((t.kn == 1 and (Time[t.i,t.j] == 1 or printedJs(Time[t.i,t.j]-1))),"or",(t.kn > 1 and doneJs(t.i,t.kn-1,Time[t.i,t.j])))
+    if((t.kn == 1 and (Time[t.i,t.j] == 1 or printedJs(Time[t.i,t.j]-1))) 
+        or (t.kn > 1 and doneJs(t.i,t.kn-1,Time[t.i,t.j]))):
+
         Done[t.i,t.j,t.kn,Time[t.i,t.j]] = True
-        print("body", t)
+
         print(K[t.i,Time[t.i,t.j]], K[t.j,Time[t.i,t.j]])
-        print("done", Time[t.i,t.j])
+        print("done", t,Time[t.i,t.j])
         for _i in range(-k, n_bodies):
             for _j in range(n_bodies):
                 if _i is not _j:
                     print(_i, ", ", _j, ", ", Done[_i,_j,t.kn,Time[t.i,t.j]])
-        
+        print()
         for _j in range(-k, n_bodies):
             for _i in range(n_bodies):
                 if _i is not _j:
@@ -296,15 +309,21 @@ def rSC1body(t):
         
         if(t.kn == 5 and not Printed[t.i,Time[t.i,t.j]]):
             Printed[t.i,Time[t.i,t.j]] = True
+            print("print:",t.i,Time[t.i,t.j],X[t.i,Time[t.i,t.j]+1])
             if(t.i == 0 and Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0): print("{:0.1f}%".format((Time[t.i,t.j]/n_timesteps)*100))
             if(t.i == 0 and Time[t.i,t.j] % k_means_interval == 0): kmeans_doTimestep(Time[t.i,t.j]) # do kmeans timestep on results of previous timestep because this definitely has all bodies done
             if Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0: #division should produce float, no cast required (from __future__)
-                filedrop(Time[t.i,t.j],t.i,X[t.i,Time[t.i,t.j]+1],V[t.i,Time[t.i,t.j]+1])
+                if t.i >= 0:
+                    filedrop(Time[t.i,t.j],t.i,X[t.i,Time[t.i,t.j]+1],V[t.i,Time[t.i,t.j]+1])
                 if(t.i == 0): kmeans_to_print += 1
             if(Time[t.i,t.j] < n_timesteps):
-                for j in range(n_bodies):
-                    if t.i is not j:
+                if t.i < 0:
+                    for j in range(n_bodies):
                         Time[t.i,j] = Time[t.i,j] + 1
+                else:
+                    for j in range(-k,n_bodies):
+                        if t.i is not j:
+                            Time[t.i,j] = Time[t.i,j] + 1
 
 def kmeans_doTimestep(time):
     global K, K_size, k, k_means_interval, k_means_Tuple, T_K, K_x, K_m
@@ -336,7 +355,7 @@ def kmeans_init():
     global K, K_size, k, k_means_interval, k_means_Tuple, T_K, K_x, K_m, kmeans_to_print
     global N, n_bodies
     global M, X, V, T
-    global kx, cur_timestep
+    global Kx, Kv, cur_timestep
     # k means:T
     T_K = []
     K = {} # address using K[i,Time[i,j]] or something like that
@@ -357,7 +376,8 @@ def kmeans_init():
             K[i,t] = 0
         for _k in range(1,k+1):
             T_K.append(k_means_Tuple(i,_k))
-        if cluster > k:
+
+        if cluster > k: # initialize remaining bodies to closest cluster
             min_dist = kmeans_dist(X[i,cur_timestep],K_x[1,cur_timestep])
             clus = 1
             for _k in range(2,k+1):
@@ -368,12 +388,13 @@ def kmeans_init():
             K_m[clus,cur_timestep] = K_m[clus,cur_timestep] + M[i]
             K_x[clus,cur_timestep] = (K_x[clus,cur_timestep]*K_m[clus,cur_timestep] + X[i,cur_timestep]*M[i])/(K_m[clus,cur_timestep]+M[i])
             K_size[clus,cur_timestep] = K_size[clus,cur_timestep] + 1  
-        else:
+        else: # initialize first k bodies to the k clusters such that clusters are not empty
             K[i,cur_timestep] = cluster
             K_m[cluster,cur_timestep] = K_m[cluster,cur_timestep] + M[i]
             K_x[cluster,cur_timestep] = (K_x[cluster,cur_timestep]*K_m[cluster,cur_timestep] + X[i,cur_timestep]*M[i])/(K_m[cluster,cur_timestep]+M[i])
             K_size[cluster,cur_timestep] = K_size[cluster,cur_timestep] + 1
             cluster = cluster + 1
+
 
     for i in range(n_bodies):
         for _k in range(1,k+1):
@@ -385,6 +406,8 @@ def kmeans_init():
                     Done[i,-_k,kn,t] = False
                     K[-_k, t] = _k
                 T.append(Tuple(i,-_k,kn))
+    
+
 
 
 def kmeans_cond(t):
@@ -431,12 +454,13 @@ def kmeans_loop():
     if(cur_timestep == 1): kmeans_to_print = 1
     for _k in range(1,k+1):
         for _ in range(kmeans_to_print):
-            filedrop(cur_timestep-1,n_bodies+_k,K_x[_k,cur_timestep],[0, 0, 0])
+            filedrop(cur_timestep-1,n_bodies+_k-1,K_x[_k,cur_timestep],[0, 0, 0])
     kmeans_to_print = 0
 
     for _k in range(1,k+1):
         M[-_k] = K_m[_k,cur_timestep]
         X[-_k,cur_timestep] = K_x[_k, cur_timestep]
+        #print("set X",-_k,cur_timestep)
 
 
 
@@ -492,6 +516,7 @@ def loop():
         #     print(T)
         #     return
         done = checkConditions()
+        #sys.exit()
 
 
 def initRandom():
