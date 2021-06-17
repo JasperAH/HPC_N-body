@@ -33,8 +33,8 @@ sim_years = 1
 n_timesteps = 1 #(60*60*24*365.25*sim_years)/dt
 cur_timestep = 1
 
-k_means_interval = 2 #10
-k = 2 #2
+k_means_interval = 1 #10
+k = 1 #2
 k_means_Tuple = collections.namedtuple('kTuple', 'i k')
 
 # We define our Tuple type here with fields m:'mass' x:'x' 'y' 'z' v:'vx' 'vy' 'vz'
@@ -130,9 +130,6 @@ def init():
     Printed = {}
 
     for i in range(len(N)):
-        M[i] = N[i][0]*(15000000000) 
-        X[i,cur_timestep] = N[i][1]
-        V[i,cur_timestep] = N[i][2]
         for j in range(len(N)):
             if i is not j:
                 for kn in range(1,6): # [1,5]
@@ -141,10 +138,15 @@ def init():
                         Kx[i,kn,t] = 0
                         Done[i,j,kn,t] = False
                         Printed[i,t] = False
+                        X[i,t] = 0
+                        V[i,t] = 0
                     T.append(Tuple(i,j,kn))
                 Time[i,j] = 1 # of 0, not sure
         filedrop(0, i, N[i][1], N[i][2])
         Printed[i,0] = True 
+        M[i] = N[i][0]*(15000000000) 
+        X[i,cur_timestep] = N[i][1]
+        V[i,cur_timestep] = N[i][2]
     for i in range(-k, 0):
         V[i,cur_timestep] = 1
         for j in range(len(N)):
@@ -209,7 +211,7 @@ def doneJs(i,kn,t):
 
 def printedJs(t):
     global Printed, n_bodies
-    for j in range(-k,n_bodies):
+    for j in range(0,n_bodies): # was vanaf -k, 
         if not Printed[j,t]:
             return False
     return True
@@ -295,7 +297,7 @@ def rSC1body(t):
 
         Done[t.i,t.j,t.kn,Time[t.i,t.j]] = True
 
-        print(K[t.i,Time[t.i,t.j]], K[t.j,Time[t.i,t.j]])
+        #print(K[t.i,Time[t.i,t.j]], K[t.j,Time[t.i,t.j]])
         print("done", t,Time[t.i,t.j])
         for _i in range(-k, n_bodies):
             for _j in range(n_bodies):
@@ -329,6 +331,7 @@ def kmeans_doTimestep(time):
     global K, K_size, k, k_means_interval, k_means_Tuple, T_K, K_x, K_m
     global N, n_bodies
     global cur_timestep
+    print("kmeans_doTimestep")
     # To update clusters, new body values need to be used
     # to make sure cluster ID stays consistent, 
     # use existing body/cluster membership to initialize before executing 
@@ -338,13 +341,24 @@ def kmeans_doTimestep(time):
         K_x[_k,time] = np.array([0,0,0])
     for i in range(n_bodies):
         cluster = K[i,cur_timestep]
-        for _interval in range(k_means_interval):
+        K[i,time] = cluster
+        K_m[cluster,time] = K_m[cluster,time] + M[i]
+        K_x[cluster,time] = (K_x[cluster,time]*K_size[cluster,time] + X[i,time])/(K_size[cluster,time]+1)
+        K_size[cluster,time] = K_size[cluster,time] + 1
+
+    cur_timestep = time
+    kmeans_loop()
+
+    for i in range(n_bodies):
+        cluster = K[i,cur_timestep]
+        for _interval in range(k_means_interval+2): #some headroom for async execution
             K[i,time + _interval] = cluster
             K_m[cluster,time + _interval] = K_m[cluster,time] + M[i]
             K_x[cluster,time + _interval] = (K_x[cluster,time]*K_size[cluster,time] + X[i,time])/(K_size[cluster,time]+1)
             K_size[cluster,time + _interval] = K_size[cluster,time] + 1
-    cur_timestep = time
-    kmeans_loop()
+    print("set time for",time,time+k_means_interval+1)
+
+
 
 def kmeans_dist(a, b):
     r = np.subtract(a,b)
@@ -461,7 +475,16 @@ def kmeans_loop():
         M[-_k] = K_m[_k,cur_timestep]
         X[-_k,cur_timestep] = K_x[_k, cur_timestep]
         #print("set X",-_k,cur_timestep)
+        print("cluster",_k,"mass",K_m[_k,cur_timestep])
 
+    if(cur_timestep == 1): 
+        for i in range(n_bodies):
+            cluster = K[i,cur_timestep]
+            for _interval in range(k_means_interval):
+                K[i,cur_timestep + _interval] = cluster
+                K_m[cluster,cur_timestep + _interval] = K_m[cluster,cur_timestep] + M[i]
+                K_x[cluster,cur_timestep + _interval] = (K_x[cluster,cur_timestep]*K_size[cluster,cur_timestep] + X[i,cur_timestep])/(K_size[cluster,cur_timestep]+1)
+                K_size[cluster,cur_timestep + _interval] = K_size[cluster,cur_timestep] + 1
 
 
     #TODO De plek om nieuwe waardes te updaten van M en X voor clusters
