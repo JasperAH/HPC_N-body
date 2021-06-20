@@ -7,7 +7,7 @@ if(print==0){set term qt enhanced size 700,700}
 if(print==1){set term gif animate size 500,500 delay 1 optimize; set output 'movie.gif'}
 
 #L - size of plot in AU
-if(!exists('L')){L=2}
+if(!exists('L')){L=10}
 print 'Size of plot [au]: L:', L
 
 #f - rotation frequency of plot
@@ -25,7 +25,7 @@ if(traj==1){print 'Trajectories: traj: full'}
 if(traj==2){print 'Trajectories: traj: limited'}
 
 #n - number of particles in plot (usually this should be the same as the number simulated)
-if(!exists('n')){n=4}
+if(!exists('n')){n=8}
 print 'Number of particles [n]: ', n
 
 #Animation

@@ -34,7 +34,7 @@ n_timesteps = 1 #(60*60*24*365.25*sim_years)/dt
 cur_timestep = 1
 
 k_means_interval = 1 #10
-k = 2 #2
+k = 3 #2
 k_means_Tuple = collections.namedtuple('kTuple', 'i k')
 
 # We define our Tuple type here with fields m:'mass' x:'x' 'y' 'z' v:'vx' 'vy' 'vz'
@@ -148,7 +148,7 @@ def init():
         X[i,cur_timestep] = N[i][1]
         V[i,cur_timestep] = N[i][2]
     for i in range(-k, 0):
-        V[i,cur_timestep] = 1
+        V[i,cur_timestep] = np.zeros(3)
         for j in range(len(N)):
             if i is not j:
                 for kn in range(1,6): # [1,5]
@@ -182,13 +182,22 @@ def filedrop(t, i, x, v): #cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1]
         outF.close()
 
 def sumJs(i,kn,t):
+    global n_bodies, k, K
+    global Kx, Kv
     return_value = 0
-    n = len(N)
-    m = [i]
-    r = list(set(range(n)) - set(m))
 
-    for j in r:
-        return_value = return_value + Kv[i,j,kn,t]
+    if i < 0:
+        for j in range(n_bodies):
+            if (i is not j) and K[i, Time[i,j]] != K[j, Time[i,j]]:
+                return_value = return_value + Kv[i,j,kn,t]
+    else:
+        for j in range(-k, 0):
+            if (i is not j) and K[i, Time[i,j]] != K[j, Time[i,j]]:
+                return_value = return_value + Kv[i,j,kn,t]
+        for j in range(0, n_bodies):
+            if (i is not j) and K[i, Time[i,j]] == K[j, Time[i,j]]:
+                return_value = return_value + Kv[i,j,kn,t]
+
     return return_value
 
 def doneJs(i,kn,t):
@@ -241,10 +250,11 @@ def rSC1body(t):
     global cur_timestep, n_timesteps, N
     global kmeans_to_print
     global K_size, K_m, K_x
+    global Kx, Kv
     #clustering = False
-    print("start body t:",t,Time[t.i,t.j],K[t.i,Time[t.i,t.j]],K[t.j,Time[t.i,t.j]])
-    if t.kn == 1 and Time[t.i,t.j] > 1: print("printed",Printed[t.j,Time[t.i,t.j]-1])
-    print("cluster size",K_size[K[t.i,Time[t.i,t.j]],cur_timestep])
+    #print("start body t:",t,Time[t.i,t.j],K[t.i,Time[t.i,t.j]],K[t.j,Time[t.i,t.j]])
+    # if t.kn == 1 and Time[t.i,t.j] > 1: print("printed",Printed[t.j,Time[t.i,t.j]-1])
+    #print("cluster size",K_size[K[t.i,Time[t.i,t.j]],cur_timestep])
     '''The actual serial code to execute if cond1 is True'''
     temp_i = [M[t.i],X[t.i,Time[t.i,t.j]],V[t.i,Time[t.i,t.j]]]
     temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],0]
@@ -252,7 +262,7 @@ def rSC1body(t):
     
     Kv[t.i,t.j,1,Time[t.i,t.j]] = a*dt
     Kx[t.i,1,Time[t.i,t.j]] = V[t.i,Time[t.i,t.j]] * dt
-
+    
 
     temp_i = [M[t.i],X[t.i,Time[t.i,t.j]],V[t.i,Time[t.i,t.j]]]
     temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],0]
@@ -291,28 +301,29 @@ def rSC1body(t):
     kv4 = sumJs(t.i,4,Time[t.i,t.j])#Kv[t.i,4,Time[t.i,t.j]]
     V[t.i,Time[t.i,t.j]+1] = V[t.i,Time[t.i,t.j]] + (kv1 + 2*kv2 + 2*kv3 + kv4)/6
 
+
     #print("set X:",t.i,Time[t.i,t.j]+1,X[t.i,Time[t.i,t.j]+1])
-    print((t.kn == 1 and (Time[t.i,t.j] == 1 or printedJs(Time[t.i,t.j]-1))),"or",(t.kn > 1 and doneJs(t.i,t.kn-1,Time[t.i,t.j])))
+    #print((t.kn == 1 and (Time[t.i,t.j] == 1 or printedJs(Time[t.i,t.j]-1))),"or",(t.kn > 1 and doneJs(t.i,t.kn-1,Time[t.i,t.j])))
     if((t.kn == 1 and (Time[t.i,t.j] == 1 or printedJs(Time[t.i,t.j]-1))) 
         or (t.kn > 1 and doneJs(t.i,t.kn-1,Time[t.i,t.j]))):
 
         Done[t.i,t.j,t.kn,Time[t.i,t.j]] = True
 
         #print(K[t.i,Time[t.i,t.j]], K[t.j,Time[t.i,t.j]])
-        print("done", t,Time[t.i,t.j])
-        for _i in range(-k, n_bodies):
-            for _j in range(n_bodies):
-                if _i is not _j:
-                    print(_i, ", ", _j, ", ", Done[_i,_j,t.kn,Time[t.i,t.j]])
-        print()
-        for _j in range(-k, n_bodies):
-            for _i in range(n_bodies):
-                if _i is not _j:
-                    print(_i, ", ", _j, ", ", Done[_i,_j,t.kn,Time[t.i,t.j]])
+        # print("done", t,Time[t.i,t.j])
+        # for _i in range(-k, n_bodies):
+        #     for _j in range(n_bodies):
+        #         if _i is not _j:
+        #             print(_i, ", ", _j, ", ", Done[_i,_j,t.kn,Time[t.i,t.j]])
+        # print()
+        # for _j in range(-k, n_bodies):
+        #     for _i in range(n_bodies):
+        #         if _i is not _j:
+        #             print(_i, ", ", _j, ", ", Done[_i,_j,t.kn,Time[t.i,t.j]])
         
         if(t.kn == 5 and not Printed[t.i,Time[t.i,t.j]]):
             Printed[t.i,Time[t.i,t.j]] = True
-            print("print:",t.i,Time[t.i,t.j],X[t.i,Time[t.i,t.j]+1])
+            # print("print:",t.i,Time[t.i,t.j],X[t.i,Time[t.i,t.j]+1])
             if(t.i == 0 and Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0): print("{:0.1f}%".format((Time[t.i,t.j]/n_timesteps)*100))
             if(t.i == 0 and Time[t.i,t.j] % k_means_interval == 0): kmeans_doTimestep(Time[t.i,t.j]) # do kmeans timestep on results of previous timestep because this definitely has all bodies done
             if Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0: #division should produce float, no cast required (from __future__)
@@ -332,7 +343,6 @@ def kmeans_doTimestep(time):
     global K, K_size, k, k_means_interval, k_means_Tuple, T_K, K_x, K_m
     global N, n_bodies
     global cur_timestep
-    print("kmeans_doTimestep")
     # To update clusters, new body values need to be used
     # to make sure cluster ID stays consistent, 
     # use existing body/cluster membership to initialize before executing 
@@ -347,20 +357,21 @@ def kmeans_doTimestep(time):
         K_x[cluster,time] = (K_x[cluster,time]*K_m[cluster,time] + X[i,time]*M[i])/(K_m[cluster,time]+M[i])
         K_m[cluster,time] = K_m[cluster,time] + M[i]
         K_size[cluster,time] = K_size[cluster,time] + 1
-        print("i",i,"cluster",cluster,"pos",K_x[cluster,time],X[i,time],M[i]) # K_x is [0,0,0] zelfs al is X en M nonzero ??????
+        #print("i",i,"cluster",cluster,"pos",K_x[cluster,time],X[i,time],M[i]) # K_x is [0,0,0] zelfs al is X en M nonzero ??????
 
     cur_timestep = time
     kmeans_loop()
 
-    for cluster in range(1,k+1):
+
+    for i in range(n_bodies):
         for _interval in range(k_means_interval+2): #some headroom for async execution
-            for i in range(n_bodies):
-                K[i,cur_timestep + _interval] = cluster
-                print("i",i,"cluster",cluster,"pos",K_x[cluster,cur_timestep])
+            cluster = K[i,cur_timestep]
+            K[i,cur_timestep + _interval] = cluster
+            #print("i",i,"cluster",cluster,"pos",K_x[cluster,cur_timestep])
             K_m[cluster,cur_timestep + _interval] = K_m[cluster,cur_timestep]
             K_x[cluster,cur_timestep + _interval] = K_x[cluster,cur_timestep]
             K_size[cluster,cur_timestep + _interval] = K_size[cluster,cur_timestep] 
-    print("set time for",cur_timestep,cur_timestep+k_means_interval+1)
+    #print("set time for",cur_timestep,cur_timestep+k_means_interval+1)
 
 
 
@@ -412,7 +423,7 @@ def kmeans_init():
             K_m[cluster,cur_timestep] = K_m[cluster,cur_timestep] + M[i]
             K_size[cluster,cur_timestep] = K_size[cluster,cur_timestep] + 1
             
-            print('init cluster',cluster,K_x[cluster,cur_timestep])
+            #print('init cluster',cluster,K_x[cluster,cur_timestep])
             cluster = cluster + 1
 
 
@@ -481,15 +492,14 @@ def kmeans_loop():
         M[-_k] = K_m[_k,cur_timestep]
         X[-_k,cur_timestep] = K_x[_k, cur_timestep]
         #print("set X",-_k,cur_timestep)
-        print("cluster",_k,"mass",K_m[_k,cur_timestep])
-    for p in range(-k,n_bodies):
-        print("pos",X[p,cur_timestep])
+        #print("cluster",_k,"mass",K_m[_k,cur_timestep],"pos",K_x[_k, cur_timestep])
+
 
     if(cur_timestep == 1): 
-        for cluster in range(1,k+1):
-            for _interval in range(k_means_interval+2): #some headroom for async execution
-                for i in range(n_bodies):
-                    K[i,cur_timestep + _interval] = cluster
+        for _interval in range(k_means_interval+2): #some headroom for async execution
+            for i in range(n_bodies):
+                cluster = K[i,cur_timestep]
+                K[i,cur_timestep + _interval] = cluster
                 K_m[cluster,cur_timestep + _interval] = K_m[cluster,cur_timestep]
                 K_x[cluster,cur_timestep + _interval] = K_x[cluster,cur_timestep]
                 K_size[cluster,cur_timestep + _interval] = K_size[cluster,cur_timestep]     
