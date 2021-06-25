@@ -34,7 +34,7 @@ n_timesteps = 1 #(60*60*24*365.25*sim_years)/dt
 cur_timestep = 1
 
 k_means_interval = 1 #10
-k = 3 #2
+k = 1 #2
 k_means_Tuple = collections.namedtuple('kTuple', 'i k')
 
 # We define our Tuple type here with fields m:'mass' x:'x' 'y' 'z' v:'vx' 'vy' 'vz'
@@ -251,6 +251,7 @@ def rSC1body(t):
     global kmeans_to_print
     global K_size, K_m, K_x
     global Kx, Kv
+    global doneCounter
     #clustering = False
     #print("start body t:",t,Time[t.i,t.j],K[t.i,Time[t.i,t.j]],K[t.j,Time[t.i,t.j]])
     # if t.kn == 1 and Time[t.i,t.j] > 1: print("printed",Printed[t.j,Time[t.i,t.j]-1])
@@ -308,8 +309,8 @@ def rSC1body(t):
         or (t.kn > 1 and doneJs(t.i,t.kn-1,Time[t.i,t.j]))):
 
         Done[t.i,t.j,t.kn,Time[t.i,t.j]] = True
-
-        #print(K[t.i,Time[t.i,t.j]], K[t.j,Time[t.i,t.j]])
+        doneCounter += 1
+        #print(t.i,t.j,t.kn,Time[t.i,t.j],K[t.i,Time[t.i,t.j]], K[t.j,Time[t.i,t.j]])
         # print("done", t,Time[t.i,t.j])
         # for _i in range(-k, n_bodies):
         #     for _j in range(n_bodies):
@@ -324,7 +325,7 @@ def rSC1body(t):
         if(t.kn == 5 and not Printed[t.i,Time[t.i,t.j]]):
             Printed[t.i,Time[t.i,t.j]] = True
             # print("print:",t.i,Time[t.i,t.j],X[t.i,Time[t.i,t.j]+1])
-            if(t.i == 0 and Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0): print("{:0.1f}%".format((Time[t.i,t.j]/n_timesteps)*100))
+            #if(t.i == 0 and Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0): print("{:0.1f}%".format((Time[t.i,t.j]/n_timesteps)*100))
             if(t.i == 0 and Time[t.i,t.j] % k_means_interval == 0): kmeans_doTimestep(Time[t.i,t.j]) # do kmeans timestep on results of previous timestep because this definitely has all bodies done
             if Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0: #division should produce float, no cast required (from __future__)
                 if t.i >= 0:
@@ -565,20 +566,23 @@ def initRandom():
     for i, c in enumerate(bytearray(os.urandom(4))):
         seed += c << i * 8
 
-    seed = 0x3f93ba96 # TODO temp
+    #seed = 0x3f93ba96 # TODO temp
+    seed = 0x3f93ba95 # TODO temp
     random.seed(seed)
 
     print("Initialized random number generator with seed: 0x{:x}\n".format(seed))
 
 
 if __name__ == '__main__':
-    global file
+    global file, doneCounter
     if(len(sys.argv) < 2):
         print("Usage:",sys.argv[0],"<input.dat> <duration (years)>")
         sys.exit()
     
     file = sys.argv[1] # n rows, and columns that are 'mass' 'x' 'y' 'z' 'vx' 'vy' 'vz'
     sim_years = int(sys.argv[2]) 
+
+    doneCounter = 0
 
     initRandom()
 
@@ -594,3 +598,6 @@ if __name__ == '__main__':
     kmeans_loop()
 
     verify()
+
+    print("number of successfully executed tupls",doneCounter)
+
