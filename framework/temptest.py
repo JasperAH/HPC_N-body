@@ -34,7 +34,7 @@ n_timesteps = 1 #(60*60*24*365.25*sim_years)/dt
 cur_timestep = 1
 
 k_means_interval = 1 #10
-k = 1 #2
+k = 3 #2
 k_means_Tuple = collections.namedtuple('kTuple', 'i k')
 
 # We define our Tuple type here with fields m:'mass' x:'x' 'y' 'z' v:'vx' 'vy' 'vz'
@@ -147,6 +147,7 @@ def init():
         M[i] = N[i][0]*(15000000000) 
         X[i,cur_timestep] = N[i][1]
         V[i,cur_timestep] = N[i][2]
+    print("bodies initialized")
     for i in range(-k, 0):
         V[i,cur_timestep] = np.zeros(3)
         for j in range(len(N)):
@@ -325,7 +326,7 @@ def rSC1body(t):
         if(t.kn == 5 and not Printed[t.i,Time[t.i,t.j]]):
             Printed[t.i,Time[t.i,t.j]] = True
             # print("print:",t.i,Time[t.i,t.j],X[t.i,Time[t.i,t.j]+1])
-            #if(t.i == 0 and Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0): print("{:0.1f}%".format((Time[t.i,t.j]/n_timesteps)*100))
+            if(t.i == 0 and Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0): print("{:0.1f}%".format((Time[t.i,t.j]/n_timesteps)*100))
             if(t.i == 0 and Time[t.i,t.j] % k_means_interval == 0): kmeans_doTimestep(Time[t.i,t.j]) # do kmeans timestep on results of previous timestep because this definitely has all bodies done
             if Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0: #division should produce float, no cast required (from __future__)
                 if t.i >= 0:
@@ -408,12 +409,13 @@ def kmeans_init():
             T_K.append(k_means_Tuple(i,_k))
 
         if cluster > k: # initialize remaining bodies to closest cluster
-            min_dist = kmeans_dist(X[i,cur_timestep],K_x[1,cur_timestep])
-            clus = 1
-            for _k in range(2,k+1):
-                if kmeans_dist(X[i,cur_timestep],K_x[_k,cur_timestep]) < min_dist:
-                    min_dist = kmeans_dist(X[i,cur_timestep],K_x[_k,cur_timestep])
-                    clus = _k
+            # min_dist = kmeans_dist(X[i,cur_timestep],K_x[1,cur_timestep])
+            # clus = 1
+            # for _k in range(2,k+1):
+            #     if kmeans_dist(X[i,cur_timestep],K_x[_k,cur_timestep]) < min_dist:
+            #         min_dist = kmeans_dist(X[i,cur_timestep],K_x[_k,cur_timestep])
+            #         clus = _k
+            clus = random.randint(1,k)
             K[i,cur_timestep] = clus
             K_x[clus,cur_timestep] = (K_x[clus,cur_timestep]*K_m[clus,cur_timestep] + X[i,cur_timestep]*M[i])/(K_m[clus,cur_timestep]+M[i])
             K_m[clus,cur_timestep] = K_m[clus,cur_timestep] + M[i]
@@ -466,6 +468,7 @@ def kmeans_body(t):
 
     K[t.i,cur_timestep] = t.k
 
+
 def kmeans_loop():
     global K, K_size, k, k_means_interval, k_means_Tuple, T_K, K_x, K_m, kmeans_to_print
     global N, n_bodies
@@ -506,11 +509,6 @@ def kmeans_loop():
                 K_size[cluster,cur_timestep + _interval] = K_size[cluster,cur_timestep]     
 
 
-    #TODO De plek om nieuwe waardes te updaten van M en X voor clusters
-    #en tuples toe te voegen of verwijderen uit reservoir
-    #TODO opvangen kan ook met K[i] == K[j] opvangen bij rcond check
-    #Tuples metnNegatieve Js moeten hier (ong) toegevoegd worden???
-    #Done wordt lelijk
 ###
 # Loop mechanics
 ##
@@ -599,5 +597,5 @@ if __name__ == '__main__':
 
     verify()
 
-    print("number of successfully executed tupls",doneCounter)
+    print("number of successfully executed tuples",doneCounter)
 

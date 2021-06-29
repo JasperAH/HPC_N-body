@@ -20,17 +20,67 @@ def F_gravitational(i, j){
 
 def sumJs(i,kn,t){
 	res = 0
-	for j in range(len(N)):
-		if i is not j:
-			res = res + Kv[i,j,kn,t]
+
+	if (i < 0){
+		for j in range(len(N)){
+			if (i != j) and (K[i,Time[i,j]] != K[j,Time[i,j]]){
+				res = res + Kv[i,j,kn,t]
+			}
+		}
+	}
+	else{
+		for j in range(-k, 0){ # k => number of clusters, k-means
+			if (i != j) and K[i,Time[i,j]] != K[j,Time[i,j]]{
+				res = res + Kv[i,j,kn,t]
+			}
+		}
+		for j in range(0, len(N)){
+			if (i != j) and K[i,Time[i,j]] == K[j,Time[i,j]]{
+				res = res + Kv[i,j,kn,t]
+			}
+		}
+	}
+
 	return res
 }
 
+
 def doneJs(i,kn,t){
-	for j in range(len(N)):
-		if i is not j:
-			if not Done[i,j,kn,t]:
-				return False
+	if (i < 0){
+		for j in range(len(N)){
+			if (i != j) and K[i,Time[i,j]] != K[j,Time[i,j]]{
+				if !Done[i,j,kn,t]{
+					return False
+				}
+			}
+		}
+	}
+	else{
+		for j in range(-k, 0){ # k => number of clusters, k-means
+			if (i != j) and K[i,Time[i,j]] != K[j,Time[i,j]]{
+				if !Done[i,j,kn,t]{
+					return False
+				}
+			}
+		}
+		for j in range(0, len(N)){
+			if (i != j) and K[i,Time[i,j]] == K[j,Time[i,j]]{
+				if !Done[i,j,kn,t]{
+					return False
+				}
+			}
+		}
+	}
+	return True
+}
+
+
+def incrementedJs(t){
+	for j in range(0,len(N)){
+		if !Incremented[j,t]{
+			return False
+		}
+	}
 	return True
 }
 
@@ -44,6 +94,9 @@ Kv[] = 0
 
 # boolean to signify if specific tupl is done: Done[i,j,kn,t]
 Done[]
+# boolean to signify if entire timestep of tupls for a body is done: Incremented[i,Time[i,j]]
+# Initialize at True for the 0th timestep 
+Incremented[]
 # time, mass, position, velocity moved out of tupl
 Time[] # time of interaction between bodies i.e.: Time[i,j]
 # Property of body (mass,position in R3, velocity in R3), e.g.: M[i]
@@ -52,7 +105,11 @@ X[]
 V[]
 
 whilelem(<i,j,kn> in T){
-	if(!Done[i,j,kn,Time[i,j]){
+	if((!Done[i,j,kn,Time[i,j]) and (
+		((i < 0 or j < 0) and !(j < 0 and i < 0) and ! (K[i,Time[i,j] == K[j,Time[i,j]]]))
+		or ((j >= 0 and i >= 0) and K[i,Time[i,j]] == K[j,Time[i,j]])
+		) and Incremented[j,Time[i,j]-1]
+	){
 		temp_i = [M[i], X[i,Time[i,j]], V[i,Time[i,j]]]
 		temp_j = [M[j], X[j,Time[i,j]], V[j,Time[i,j]]]
 		a = F_gravitational(temp_i,temp_j)/M[i] 	# vector3 a contains x, y and z components
@@ -95,7 +152,7 @@ whilelem(<i,j,kn> in T){
 		kv4 = sumJs(i,3,Time[i,j])
 		V[i,Time[i,j]+1] = V[i,Time[i,j]] + (kv1 + 2*kv2 + 2*kv3 + kv4)/6
 		
-		if(kn == 1 and (Time[i,j] == 1 or doneJs(i,5,Time[i,j]-1)) or (kn > 1 and doneJs(i,kn-1,Time[i,j]))){
+		if(kn == 1 and (Time[i,j] == 1 or incrementedJs(Time[i,j]-1)) or (kn > 1 and doneJs(i,kn-1,Time[i,j]))){
 			Done[i,j,kn,Time[i,j]] = True
 			if(kn == 5 and not Incremented[i,Time[i,j]]){
 				Incremented[i,Time[i,j]] = True
