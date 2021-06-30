@@ -2,7 +2,7 @@
 
 Available files in tarball:
 -tUPLonebody.py:                                    code
--tuplnbody.py:                                      example of multiple conditions
+-tuplnbodyRewrite.py:                               example of multiple conditions
 -directsum tUPL onebody.txt:                        tUPL spec
 -2_body, 3_body, triple_ss, full_solar_system:      usefull .dat files containing starting setups, more available in fortran project
 -plot.p:                                            used for plotting
@@ -15,7 +15,7 @@ python tUPLonebody.py <input-file> <years of simulation>
 python tUPLonebody.py 3_body.dat 1
 A "output_data" folder should be available in the same folder as tUPLonebody.py
 
-tuplnbody.py is an interim result of our project before k-means was implemented. This can be used as example where there are more than one conditions.
+tuplnbodyRewrite.py is an interim result of our project before k-means was implemented. This can be used as example where there are more than one conditions.
 
 directsum tupl onebody.txt is the tUPL specification of tUPLonebody.py. Not all initialization is shown in this specification.
 
