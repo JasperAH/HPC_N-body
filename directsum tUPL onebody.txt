@@ -86,9 +86,9 @@ def incrementedJs(t){
 
 ###### n-body tUPL spec ######
 
-T = {<i,j,kn> | i,j in #bodies, kn in [1,5]} 
+T = {<i,j,kn> | i,j in [-k,bodies] where i is not j, kn in [1,5]} 
 
-# addressed via e.g. Kx[i,j,kn,t] where i,j in N and k in [1,4], t in n_timesteps. Kx and Kv contain vector3s.
+# addressed via e.g. Kx[i,j,kn,t] where i,j in [-k, N] and k in [1,4], t in n_timesteps. Kx and Kv contain vector3s.
 Kx[] = 0
 Kv[] = 0
 

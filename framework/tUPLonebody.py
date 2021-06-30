@@ -33,8 +33,8 @@ sim_years = 1
 n_timesteps = 1 #(60*60*24*365.25*sim_years)/dt
 cur_timestep = 1
 
-k_means_interval = 1 #10
-k = 3 #2
+k_means_interval = 1
+k = 3
 k_means_Tuple = collections.namedtuple('kTuple', 'i k')
 
 # We define our Tuple type here with fields m:'mass' x:'x' 'y' 'z' v:'vx' 'vy' 'vz'
@@ -141,7 +141,7 @@ def init():
                         X[i,t] = 0
                         V[i,t] = 0
                     T.append(Tuple(i,j,kn))
-                Time[i,j] = 1 # of 0, not sure
+                Time[i,j] = 1
         filedrop(0, i, N[i][1], N[i][2])
         Printed[i,0] = True 
         M[i] = N[i][0]*(15000000000) 
@@ -159,7 +159,7 @@ def init():
                         Done[i,j,kn,t] = False
                         Printed[i,t] = False
                     T.append(Tuple(i,j,kn))
-                Time[i,j] = 1 # of 0, not sure
+                Time[i,j] = 1
         Printed[i,0] = True 
 
 #dataplotting function 
@@ -167,7 +167,6 @@ def filedrop(t, i, x, v): #cur_timestep,t.i,X[t.i,t.t+1],V[t.i,t.t+1]
     file_name = "particle_" + str(i+1) + ".dat"
     location = "output_data/"
     white = "        "
-    #data = str(t) + white + str(X[i, t][0]) + white + str(X[i, t][1]) + white + str(X[i, t][2]) + white + str(V[i, t][0]) + white + str(V[i, t][1]) + white + str(V[i, t][2])
     data = "{:10.10f}".format(t) + white + "{:10.10f}".format(x[0]) + white + "{:10.10f}".format(x[1]) + white + "{:10.10f}".format(x[2]) + white + "{:10.10f}".format(v[0]) + white + "{:10.10f}".format(v[1]) + white + "{:10.10f}".format(v[2])
     if t >= 1:
         outF = open(location+file_name, "a")
@@ -277,7 +276,7 @@ def rSC1body(t):
     a = f_gravitational(temp_i,temp_j)/M[t.i]
     
     Kv[t.i,t.j,2,Time[t.i,t.j]] = a*dt
-    kv1 = sumJs(t.i,1,Time[t.i,t.j])#Kv[t.i,1,Time[t.i,t.j]])
+    kv1 = sumJs(t.i,1,Time[t.i,t.j])
     Kx[t.i,2,Time[t.i,t.j]] = (V[t.i,Time[t.i,t.j]] + kv1/2) * dt
 
 
@@ -288,7 +287,7 @@ def rSC1body(t):
     a = f_gravitational(temp_i,temp_j)/M[t.i]
     
     Kv[t.i,t.j,3,Time[t.i,t.j]] = a*dt
-    kv2 = sumJs(t.i, 2, Time[t.i,t.j])#Kv[t.i,2,Time[t.i,t.j]])
+    kv2 = sumJs(t.i, 2, Time[t.i,t.j])
     Kx[t.i,3,Time[t.i,t.j]] = (V[t.i,Time[t.i,t.j]] + kv2/2) * dt
 
 
@@ -299,19 +298,19 @@ def rSC1body(t):
     a = f_gravitational(temp_i,temp_j)/M[t.i]
     
     Kv[t.i,t.j,4,Time[t.i,t.j]] = a*dt
-    kv3 = sumJs(t.i, 3, Time[t.i,t.j])#Kv[t.i,3,Time[t.i,t.j]])
+    kv3 = sumJs(t.i, 3, Time[t.i,t.j])
     Kx[t.i,4,Time[t.i,t.j]] = (V[t.i,Time[t.i,t.j]] + kv3) * dt
     
     
     X[t.i,Time[t.i,t.j]+1] = X[t.i,Time[t.i,t.j]] + (Kx[t.i,1,Time[t.i,t.j]] + 2*Kx[t.i,2,Time[t.i,t.j]] + 2*Kx[t.i,3,Time[t.i,t.j]] + Kx[t.i,4,Time[t.i,t.j]])/6
-    kv4 = sumJs(t.i,4,Time[t.i,t.j])#Kv[t.i,4,Time[t.i,t.j]]
+    kv4 = sumJs(t.i,4,Time[t.i,t.j])
     V[t.i,Time[t.i,t.j]+1] = V[t.i,Time[t.i,t.j]] + (kv1 + 2*kv2 + 2*kv3 + kv4)/6
 
     if((t.kn == 1 and (Time[t.i,t.j] == 1 or printedJs(Time[t.i,t.j]-1))) 
         or (t.kn > 1 and doneJs(t.i,t.kn-1,Time[t.i,t.j]))):
 
         Done[t.i,t.j,t.kn,Time[t.i,t.j]] = True
-        doneCounter += 1 # count successfully executed tuples
+        doneCounter += 1 # count successfully executed tuples for experiments
         
         if(t.kn == 5 and not Printed[t.i,Time[t.i,t.j]]):
             Printed[t.i,Time[t.i,t.j]] = True
@@ -344,11 +343,9 @@ def kmeans_doTimestep(time):
     for i in range(n_bodies):
         cluster = K[i,cur_timestep]
         K[i,time] = cluster
-        #K_x[cluster,time] = (K_x[cluster,time]*K_size[cluster,time] + X[i,time])/(K_size[cluster,time]+1)
         K_x[cluster,time] = (K_x[cluster,time]*K_m[cluster,time] + X[i,time]*M[i])/(K_m[cluster,time]+M[i])
         K_m[cluster,time] = K_m[cluster,time] + M[i]
         K_size[cluster,time] = K_size[cluster,time] + 1
-        #print("i",i,"cluster",cluster,"pos",K_x[cluster,time],X[i,time],M[i]) # K_x is [0,0,0] zelfs al is X en M nonzero ??????
 
     cur_timestep = time
     kmeans_loop()
@@ -358,11 +355,9 @@ def kmeans_doTimestep(time):
         for _interval in range(k_means_interval+2): #some headroom for async execution
             cluster = K[i,cur_timestep]
             K[i,cur_timestep + _interval] = cluster
-            #print("i",i,"cluster",cluster,"pos",K_x[cluster,cur_timestep])
             K_m[cluster,cur_timestep + _interval] = K_m[cluster,cur_timestep]
             K_x[cluster,cur_timestep + _interval] = K_x[cluster,cur_timestep]
-            K_size[cluster,cur_timestep + _interval] = K_size[cluster,cur_timestep] 
-    #print("set time for",cur_timestep,cur_timestep+k_means_interval+1)
+            K_size[cluster,cur_timestep + _interval] = K_size[cluster,cur_timestep]
 
 
 
@@ -398,12 +393,6 @@ def kmeans_init():
             T_K.append(k_means_Tuple(i,_k))
 
         if cluster > k: # initialize remaining bodies to closest cluster
-            # min_dist = kmeans_dist(X[i,cur_timestep],K_x[1,cur_timestep])
-            # clus = 1
-            # for _k in range(2,k+1):
-            #     if kmeans_dist(X[i,cur_timestep],K_x[_k,cur_timestep]) < min_dist:
-            #         min_dist = kmeans_dist(X[i,cur_timestep],K_x[_k,cur_timestep])
-            #         clus = _k
             clus = random.randint(1,k)
             K[i,cur_timestep] = clus
             K_x[clus,cur_timestep] = (K_x[clus,cur_timestep]*K_m[clus,cur_timestep] + X[i,cur_timestep]*M[i])/(K_m[clus,cur_timestep]+M[i])
@@ -414,16 +403,14 @@ def kmeans_init():
             K_x[cluster,cur_timestep] = (K_x[cluster,cur_timestep]*K_m[cluster,cur_timestep] + X[i,cur_timestep]*M[i])/(K_m[cluster,cur_timestep]+M[i])
             K_m[cluster,cur_timestep] = K_m[cluster,cur_timestep] + M[i]
             K_size[cluster,cur_timestep] = K_size[cluster,cur_timestep] + 1
-            
-            #print('init cluster',cluster,K_x[cluster,cur_timestep])
             cluster = cluster + 1
 
 
     for i in range(n_bodies):
         for _k in range(1,k+1):
             for kn in range(1, 6):
-                Time[i,-_k] = 1 # of 0, not sure
-                for t in range(1,n_timesteps+1): # [1,n_timesteps]
+                Time[i,-_k] = 1
+                for t in range(1,n_timesteps+1): 
                     Kv[i,-_k,kn,t] = 0
                     Kx[-_k,kn,t] = 0
                     Done[i,-_k,kn,t] = False
@@ -484,8 +471,6 @@ def kmeans_loop():
     for _k in range(1,k+1):
         M[-_k] = K_m[_k,cur_timestep]
         X[-_k,cur_timestep] = K_x[_k, cur_timestep]
-        #print("set X",-_k,cur_timestep)
-        #print("cluster",_k,"mass",K_m[_k,cur_timestep],"pos",K_x[_k, cur_timestep])
 
 
     if(cur_timestep == 1): 
@@ -505,17 +490,8 @@ def kmeans_loop():
 def body(t):
     global T
     ''' Return True when modification has been made '''
-
-    #bodies_with_true_cond = []
-    #for i in range(len(sc_cond)):
-    #    if sc_cond[i](t):
-    #        bodies_with_true_cond.append(sc_body[i])
     if rcond1(t) == True:
         rSC1body(t)
-    #if(len(bodies_with_true_cond) > 0): # len is always 1 or 0 I believe
-    #    choice = random.randint(0,len(bodies_with_true_cond)-1)
-    #    bodies_with_true_cond[choice](t)
-    #    T.remove(t) # attempt to convert whilelem to forelem
     return
 
 
@@ -525,8 +501,6 @@ def checkConditions():
     tmp = False
     for t in T:
         tmp |= rcond1(t)
-        #for c in sc_cond:
-        #    tmp |= c(t)
 
     return tmp
 
@@ -540,21 +514,13 @@ def loop():
         size = len(T)
         for t in tmp:
             body(t)
-        # if len(T) == size: # and False: # this no longer works with dynamically adding tupls
-        #     print("Stuck, bad exit")
-        #     print(T)
-        #     return
         done = checkConditions()
-        #sys.exit()
 
 
 def initRandom():
     seed = 0
     for i, c in enumerate(bytearray(os.urandom(4))):
         seed += c << i * 8
-
-    #seed = 0x3f93ba96 # TODO temp
-    seed = 0x3f93ba95 # TODO temp
     random.seed(seed)
 
     print("Initialized random number generator with seed: 0x{:x}\n".format(seed))

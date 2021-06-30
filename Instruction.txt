@@ -1,0 +1,29 @@
+#By Jasper Hasenoot and Thomas Wink, spring 2021
+
+Available files in tarball:
+-tUPLonebody.py:                                    code
+-tuplnbody.py:                                      example of multiple conditions
+-directsum tUPL onebody.txt:                        tUPL spec
+-2_body, 3_body, triple_ss, full_solar_system:      usefull .dat files containing starting setups, more available in fortran project
+-plot.p:                                            used for plotting
+-report.pdf:                                        final report
+
+
+tUPLonebody.py is the final result of this project, with an integration of n-body and k-means. The experiments were conducted on this file. As this is python2, the
+following command can be used:
+python tUPLonebody.py <input-file> <years of simulation>
+python tUPLonebody.py 3_body.dat 1
+A "output_data" folder should be available in the same folder as tUPLonebody.py
+
+tuplnbody.py is an interim result of our project before k-means was implemented. This can be used as example where there are more than one conditions.
+
+directsum tupl onebody.txt is the tUPL specification of tUPLonebody.py. Not all initialization is shown in this specification.
+
+The .dat files are starting points containing different systems. A lot of other .dat files are available in the git repository where they came from:
+https://github.com/alexander-mead/nbody
+
+
+plot.p is the plotting tool that was available in the fortran project, it can be used by following the instructions that came with the tool:
+These data can then be visualised using the gnuplot script `plot.p`, which can do either a static or animated plot. This script can be run by entering 
+gnuplot `>gnuplot` and then type `gnuplot> load 'plot.p'`. The script requires some things to be specified that are listed in each plotting file; 
+things like number of particles, dimension for the plot.
