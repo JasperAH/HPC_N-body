@@ -221,7 +221,7 @@ def doneJs(i,kn,t):
 
 def printedJs(t):
     global Printed, n_bodies
-    for j in range(0,n_bodies): # was vanaf -k, 
+    for j in range(0,n_bodies): 
         if not Printed[j,t]:
             return False
     return True
@@ -238,12 +238,16 @@ sc_body = []
 
 def rcond1(t):
     global Done, Time, K
-    '''Implement the condition for serial code 1, return a boolean'''
+    '''Implement the condition for serial code 1, return a boolean
+        Only tuples that are not yet done and were printed in the
+        previous timestep can be executed as a baseline. Next to
+        this, this enforces body-body interactions within a cluster
+        and body-cluster interactions when a body is in a different
+        cluster.'''
     res = ((not Done[t.i,t.j,t.kn,Time[t.i,t.j]]) and (
             ((t.j < 0 or t.i < 0) and not (t.j < 0 and t.i < 0) and not (K[t.i,Time[t.i,t.j]] == K[t.j,Time[t.i,t.j]])) 
             or ((t.j >= 0 and t.i >= 0) and K[t.i,Time[t.i,t.j]] == K[t.j,Time[t.i,t.j]])
         ) and Printed[t.j,Time[t.i,t.j]-1])
-    #print("rcond",t.i,t.j,K[t.i,Time[t.i,t.j]],K[t.j,Time[t.i,t.j]],(Done[t.i,t.j,t.kn,Time[t.i,t.j]]),t.kn, res)
     return res
 
 def rSC1body(t):
@@ -253,11 +257,11 @@ def rSC1body(t):
     global K_size, K_m, K_x
     global Kx, Kv
     global doneCounter
-    #clustering = False
-    #print("start body t:",t,Time[t.i,t.j],K[t.i,Time[t.i,t.j]],K[t.j,Time[t.i,t.j]])
-    # if t.kn == 1 and Time[t.i,t.j] > 1: print("printed",Printed[t.j,Time[t.i,t.j]-1])
-    #print("cluster size",K_size[K[t.i,Time[t.i,t.j]],cur_timestep])
-    '''The actual serial code to execute if cond1 is True'''
+    '''The actual serial code to execute if cond1 is True
+        Executes RK4 steps, aggregates result (as kn=5) for 
+        next timestep. Determines when tuple is actually done
+        and when results are final such that they can be
+        output to a file. Initiates K-means step at interval.'''
     temp_i = [M[t.i],X[t.i,Time[t.i,t.j]],V[t.i,Time[t.i,t.j]]]
     temp_j = [M[t.j],X[t.j,Time[t.i,t.j]],0]
     a = f_gravitational(temp_i,temp_j)/M[t.i]
@@ -303,29 +307,14 @@ def rSC1body(t):
     kv4 = sumJs(t.i,4,Time[t.i,t.j])#Kv[t.i,4,Time[t.i,t.j]]
     V[t.i,Time[t.i,t.j]+1] = V[t.i,Time[t.i,t.j]] + (kv1 + 2*kv2 + 2*kv3 + kv4)/6
 
-
-    #print("set X:",t.i,Time[t.i,t.j]+1,X[t.i,Time[t.i,t.j]+1])
-    #print((t.kn == 1 and (Time[t.i,t.j] == 1 or printedJs(Time[t.i,t.j]-1))),"or",(t.kn > 1 and doneJs(t.i,t.kn-1,Time[t.i,t.j])))
     if((t.kn == 1 and (Time[t.i,t.j] == 1 or printedJs(Time[t.i,t.j]-1))) 
         or (t.kn > 1 and doneJs(t.i,t.kn-1,Time[t.i,t.j]))):
 
         Done[t.i,t.j,t.kn,Time[t.i,t.j]] = True
-        doneCounter += 1
-        #print(t.i,t.j,t.kn,Time[t.i,t.j],K[t.i,Time[t.i,t.j]], K[t.j,Time[t.i,t.j]])
-        # print("done", t,Time[t.i,t.j])
-        # for _i in range(-k, n_bodies):
-        #     for _j in range(n_bodies):
-        #         if _i is not _j:
-        #             print(_i, ", ", _j, ", ", Done[_i,_j,t.kn,Time[t.i,t.j]])
-        # print()
-        # for _j in range(-k, n_bodies):
-        #     for _i in range(n_bodies):
-        #         if _i is not _j:
-        #             print(_i, ", ", _j, ", ", Done[_i,_j,t.kn,Time[t.i,t.j]])
+        doneCounter += 1 # count successfully executed tuples
         
         if(t.kn == 5 and not Printed[t.i,Time[t.i,t.j]]):
             Printed[t.i,Time[t.i,t.j]] = True
-            # print("print:",t.i,Time[t.i,t.j],X[t.i,Time[t.i,t.j]+1])
             if(t.i == 0 and Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0): print("{:0.1f}%".format((Time[t.i,t.j]/n_timesteps)*100))
             if(t.i == 0 and Time[t.i,t.j] % k_means_interval == 0): kmeans_doTimestep(Time[t.i,t.j]) # do kmeans timestep on results of previous timestep because this definitely has all bodies done
             if Time[t.i,t.j] % (n_timesteps/n_outputs) < 1.0: #division should produce float, no cast required (from __future__)

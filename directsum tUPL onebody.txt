@@ -156,10 +156,21 @@ whilelem(<i,j,kn> in T){
 			Done[i,j,kn,Time[i,j]] = True
 			if(kn == 5 and not Incremented[i,Time[i,j]]){
 				Incremented[i,Time[i,j]] = True
+				if(i == 0 and Time[i,j] % k_means_interval == 0){
+					kmeans_doTimestep(Time[i,j]) # this executes the k-means whilelem loop after brief initialization of values, not shown
+				}
 				if(Time[i,j] < n_timesteps){
-					for _j in range(len(N)){
-						if i is not _j:
-							Time[i,_j] = Time[i,_j] + 1
+					if (i<0){
+						for _j in range(len(N)){
+							if (i != _j)
+								Time[i,_j] = Time[i,_j] + 1
+						}						
+					}
+					else{
+						for _j in range(-k,len(N)){
+							if (i != _j)
+								Time[i,_j] = Time[i,_j] + 1
+						}
 					}
 				}
 			}
